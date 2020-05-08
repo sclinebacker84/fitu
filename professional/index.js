@@ -112,8 +112,8 @@ class ProfessionForm extends Component {
 		this.state.profession.certifications.unshift({})
 		this.setState(this.state)
 	}
-	removeCertification(i){
-		this.state.profession.certifications.splice(i,1)
+	removeCertification(){
+		this.state.profession.certifications.shift()
 		this.props.refresh()
 	}
 	async save(){
@@ -171,13 +171,14 @@ class ProfessionForm extends Component {
 				)
 			),
 			h('div',{class:'divider text-center','data-content':'Certifications'}),
-			h('div',{class:'text-center'},
-				h('button',{class:'btn',onClick:e => this.addCertification()},'Add Certification')
+			h('div',{class:'container'},
+				h('button',{class:'btn',onClick:e => this.addCertification()},'Add'),
+				h('button',{class:'btn float-right',onClick:e => this.removeCertification()},'Remove')
 			),
 			this.state.profession.certifications.map((cert,index) => 
 				h('div',{class:'columns'},
-					h('div',{class:'column col-11 columns'},
-						h('div',{class:'form-group column col-4'},
+					h('div',{class:'column col-12 columns'},
+						h('div',{class:'column col-4'},
 							h('label',{class:'form-label'},'Certification'),
 							h('select',{
 								class:'form-select',
@@ -188,7 +189,7 @@ class ProfessionForm extends Component {
 								h('option',{value:c},c)
 							))
 						),
-						h('div',{class:'form-group column col-4'},
+						h('div',{class:'column col-4'},
 							h('label',{class:'form-label'},'Expires On'),
 							h('input',{
 								class:'form-input',
@@ -198,7 +199,7 @@ class ProfessionForm extends Component {
 								onInput:e => this.updateValue(cert,'expirationDate',e.target.value)
 							})
 						),
-						h('div',{class:'form-group column col-4'},
+						h('div',{class:'column col-4'},
 							h('label',{class:'form-label'},'Institute'),
 							h('select',{
 								class:'form-select',
@@ -209,14 +210,10 @@ class ProfessionForm extends Component {
 								h('option',{value:c.institute},c.institute)
 							))
 						)
-					),
-					h('div',{class:'column col-1'},
-						h('label',{class:'form-label'}),
-						h('button',{class:'btn',onClick:e => this.removeCertification(index)},'Remove')
 					)
 				)
 			),
-			h('div',{class:'text-center'},
+			h('div',{class:'text-center mt-2'},
 				h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,disabled:!this.state.profession.certifications.length,onClick:e => this.save()},'Save')
 			)
 		)
