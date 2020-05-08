@@ -1,4 +1,3 @@
-const google = {parentFolder:'1KiuXY5kzUl2SUsy0U6Jayy5LNB5PmB2k',url:'https://www.googleapis.com/drive/v3'}
 const params = new URLSearchParams(window.location.search)
 if(params.get('token') && params.get('email')){
 	window.localStorage.setItem('token', params.get('token'))
@@ -14,28 +13,6 @@ const {h,render,Component} = window.preact
 
 const dynamodb = new AWS.DynamoDB.DocumentClient({convertEmptyValues:true})
 const lambda = new AWS.Lambda()
-
-const listFiles = async (apiKey, store, category) => {
-	const params = `key=${apiKey}&spaces=drive&pageSize=1&q='${google.parentFolder}' in parents and name contains '${store}__${category}'`
-	return await fetch(google.url+'/files?'+params).then(r => r.json())
-}
-
-const getFile = async (apiKey, id) => {
-	const params = `key=${apiKey}&alt=media`
-	return await fetch(google.url+/files/+id+'?'+params).then(r => r.json())
-}
-
-const clone = (o) => {
-	if(Array.isArray(o)){
-		return o.map(e => clone(e))
-	}else if(typeof o === 'object'){
-		return Object.keys(o).reduce((a,k) => {
-			a[k] = clone(o[k])
-			return a
-		},{})
-	}
-	return o
-}
 
 /**********************************************/
 
@@ -68,22 +45,6 @@ class Modal extends Component {
 }
 
 class NewProfessionModal extends Modal {
-	constructor(props){
-		super(props)
-		this.state.professions = []
-		this.refresh()
-	}
-	async refresh(){
-		const r = await dynamodb.get({
-			TableName:'configs',
-			Key:{
-				partitionKey:'fitu_reference'
-			}
-		}).promise()
-		const professions = new Set()
-		r.Item.data.forEach(e => professions.add(e.profession))
-		this.setState({professions:Array.from(professions)})
-	}
 	createProfession(e){
 		this.props.createProfession(this.state.profession)
 	}
@@ -91,7 +52,7 @@ class NewProfessionModal extends Modal {
 		return h('div',undefined,
 			h('div',{class:'form-group'},
 				h('select',{class:'form-select',value:this.state.profession,onInput:e => this.setState({profession:e.target.value})},
-					this.state.professions.map(p => h('option',{value:p},p))
+					this.props.professions.map(p => h('option',{value:p},p))
 				),
 				h('a',{class:'btn mt-1',href:'#close',disabled:!this.state.profession,onClick:e => this.createProfession(e)},'Create Profession')
 			)
@@ -127,7 +88,7 @@ class ProfessionForm extends Component {
 			if(r.FunctionError){
 				alert(JSON.parse(r.Payload).errorMessage)
 			}else{
-				alert('Done!')
+				alert('Your application was submitted for review.  You will get an email shortly')
 			}
 			this.setState({loading:false})
 		}
@@ -251,7 +212,7 @@ class Professions extends Component {
 		const r = await dynamodb.get({
 			TableName:'configs',
 			Key:{
-				partitionKey:'fitu_reference'
+				partitionKey:'fitu_reference_professions'
 			}
 		}).promise()
 		r.Item.data.forEach(r => {
@@ -290,7 +251,8 @@ class Professions extends Component {
 				h(NewProfessionModal,{
 					title:'Choose a Profession',
 					id:this.state.newProfessionModalId,
-					createProfession:p => this.createProfession(p)
+					createProfession:p => this.createProfession(p),
+					professions:Object.keys(this.state.reference)
 				})
 			),
 			h('div',undefined,
@@ -340,12 +302,6 @@ class Auth extends Component {
 class Container extends Component {
 	constructor(props){
 		super(props)
-	}
-	next(){
-		this.setState({screenId:Math.min(this.state.screenId+1, this.state.screens.length-1)})
-	}
-	prev(){
-		this.setState({screenId:Math.max(this.state.screenId-1, 0)})
 	}
 	hasAuth(){
 		return window.localStorage.getItem('email') && window.localStorage.getItem('token')
