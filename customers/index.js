@@ -49,6 +49,7 @@ class Search extends Component {
 		super(props)
 		this.state.results = []
 		this.state.professions = []
+		this.state.zip = 22030
 		this.state.radiuses = [5,10,20,40,100]
 		this.state.radius = this.state.radiuses[0]
 		this.state.genders = ['All Genders','Male','Female']
@@ -61,7 +62,7 @@ class Search extends Component {
 		const r = await dynamodb.get({
 			TableName:'configs',
 			Key:{
-				partitionKey:'fitu_reference_professions'
+				partitionKey:'fitu_certs'
 			}
 		}).promise()
 		r.Item.data.forEach(r => professions.add(r.profession))
@@ -74,13 +75,19 @@ class Search extends Component {
 			FunctionName:'fitu_search',
 			Payload:JSON.stringify({
 				profession:this.state.profession,
-				zip:this.state.zip,
+				zip:''+this.state.zip,
 				radius:this.state.radius,
 				gender:this.state.gender,
 				token:window.localStorage.getItem('token')
 			})
 		}).promise()
-		this.setState({loading:false,results:JSON.parse(r.Payload)})
+		const results = JSON.parse(r.Payload)
+		results.forEach(r => r.level = r.certifications.reduce((a,c) => {
+			a[c.profession] = a[c.profession] || 0
+			a[c.profession]++
+			return a
+		},{}))
+		this.setState({loading:false,results:results})
 	}
 	disableSearch(){
 		return !(this.state.profession && this.state.zip && this.state.radius && this.state.gender)
@@ -88,20 +95,20 @@ class Search extends Component {
 	render(){
 		return h('div',undefined,
 			h('div',{class:'columns'},
-				h('div',{class:'column col-3'},
+				h('div',{class:'column col-3 col-xs-12'},
 					h('select',{class:'form-select',onInput: e => this.setState({profession:e.target.value}), value:this.state.profession},
 						this.state.professions.map(p => h('option',{value:p},p))
 					)
 				),
-				h('div',{class:'column col-3'},
+				h('div',{class:'column col-3 col-xs-12'},
 					h('input',{class:'form-input',type:'number',onInput:e => this.setState({zip:e.target.value}),value:this.state.zip})
 				),
-				h('div',{class:'column col-3'},
+				h('div',{class:'column col-3 col-xs-12'},
 					h('select',{class:'form-select',onInput: e => this.setState({radius:e.target.value}), value:this.state.radius},
 						this.state.radiuses.map(p => h('option',{value:p},p+' miles'))
 					)
 				),
-				h('div',{class:'column col-3'},
+				h('div',{class:'column col-3 col-xs-12'},
 					h('select',{class:'form-select',onInput: e => this.setState({gender:e.target.value}), value:this.state.gender},
 						this.state.genders.map(p => h('option',{value:p},p))
 					)
@@ -111,16 +118,29 @@ class Search extends Component {
 				h('button',{class:'btn'+(this.state.loading ? ' loading' : ''),disabled:this.disableSearch(),onClick:e => this.search(e)},'Search')
 			),
 			h('div',{class:'container'},
-				this.state.results.map(result => 
+				!this.state.results.length ? 
+				  h('div',{class:'empty'},
+				  	h('div',{class:'empty-title h5'},'No Results')
+				  )
+				: this.state.results.map(result => 
 					h('div',{class:'card text-center'},
 						h('div',{class:'card-image'},
 							h('img',{class:'img-responsive d-inline-flex',style:'height: 5em',src:result.image || '../img/generic-profile.png'})
 						),
 						h('div',{class:'card-header'},
-							h('div',{class:'card-title h5'},result.name)
+							h('div',{class:'card-title h5'},`${result.name.first} ${result.name.middle || ''} ${result.name.last}`)
 						),
 						h('div',{class:'card-body'},
-							h('div',{class:'h6'},`Level: ${result.level}`)
+							Object.keys(result.level).map(r => h('div',{class:'h6'},`${r} (Level: ${result.level[r]})`))
+						),
+						h('div',{class:'card-footer'},
+							h('div',{class:'columns'},
+								h('div',{class:'column col-4 col-mx-auto text-center'},
+									result.instagram && h('a',{class:'d-inline-flex',target:'_blank',href:`https://www.instagram.com/${result.instagram.replace('@','')}`},
+										h('img',{class:'img-responsive',style:'height: 2em',src:'../img/instagram.jpg'})
+									)
+								)
+							)
 						)
 					)
 				)
@@ -154,13 +174,57 @@ class Auth extends Component {
 class Container extends Component {
 	constructor(props){
 		super(props)
+		this.state.screens = [
+			{
+				name:'Search',
+				icon:'icon-search'
+			}
+		]
+		this.state.screen = this.state.screens[0]
 	}
 	hasAuth(){
 		return window.localStorage.getItem('email') && window.localStorage.getItem('token')
 	}
+	changeMenu(e,s){
+		this.setState({screen:s})
+	}
+	screen(){
+		switch(this.state.screen.name){
+			case 'Search':
+				return h(Search)
+		}
+	}
 	content(){
 		return h('div',{class:'container'},
-			h(Search)
+			h('div',{class:'navbar bg-secondary mb-2'},
+				h('div',{class:'navbar-section'},
+					h('a',{class:'off-canvas-toggle btn btn-link', href:'#sidebar'},
+						h('i',{class:'icon icon-menu'})
+					)
+				),
+				h('div',{class:'navbar-center'},
+					h('img',{class:'img-responsive',style:'height: 3em',src:'../img/logo.png'})
+				),
+				h('div',{class:'navbar-section'})
+			),
+			h('div',{class:'off-canvas'},
+				h('div',{class:'off-canvas-content',style:'padding: 0px'},
+					this.screen()
+				),
+				h('div',{class:'off-canvas-sidebar',id:'sidebar'},
+					h('div',{class:'container'},
+						h('ul',{class:'menu'},
+							this.state.screens.map(s => h('li',{class:'menu-item'},
+								h('a',{href:'#close',onClick:e => this.changeMenu(e,s)},
+									h('i',{class:'icon mr-2 '+s.icon}),
+									h('label',{class:'form-label d-inline-flex'+(this.state.screen === s ? ' text-bold' : '')},s.name)
+								)
+							))
+						)
+					)
+				),
+				h('a',{href:'#close',class:'off-canvas-overlay'})
+			)
 		)
 	}
 	render(){

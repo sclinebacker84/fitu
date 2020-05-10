@@ -177,19 +177,14 @@ class Approvals extends Component {
 	}
 	render(){
 		return h('div',{class:'container'},
-			h('div',{class:'columns'},
-				h('div',{class:'column col-12'},
-					h('input',{
-						class:'form-input',
-						placeholder:'Enter Email',
-						value:this.state.user,
-						onInput:e => this.setState({user:e.target.value})
-					})
-				)
-			),
 			h(Modal,{id:'rejectionModal',title:'Enter Reason for Rejection',body:this.rejectionModal()}),
+			this.state.loading && h('div',{class:'loading loading-lg mt-1'}),
 			h('div',{class:'mt-2'},
-				this.state.changes.map((c,i) => 
+				!this.state.changes.length ? 
+				  h('div',{class:'empty'},
+				  	h('div',{class:'empty-title h5'},'No Pending Approvals')
+				  )
+				: this.state.changes.map((c,i) => 
 					h('div',{class:'accordion',style:'display: grid'},
 					  h('input',{type:'checkbox',id:`a-${i}`,hidden:true}),
 					  h('label',{class:"accordion-header bg-secondary text-center",for:`a-${i}`},

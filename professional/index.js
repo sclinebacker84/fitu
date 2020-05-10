@@ -71,6 +71,7 @@ class Profile extends Component {
 	}
 	render(){
 		return h('div',undefined,
+			this.state.form.hasPending && h('div',{class:'toast toast-warning text-center'},'Pending Changes'),
 			h('div',{class:'form-group'},
 				h('label',{class:'form-label'},'First Name'),
 				h('input',{
@@ -123,6 +124,21 @@ class Profile extends Component {
 				},
 					h('option',{value:'Male'},'Male'),
 					h('option',{value:'Female'},'Female')
+				)
+			),
+			h('div',{class:'divider text-center','data-content':'Link your Social Media'}),
+			h('div',{class:'form-group columns'},
+				h('div',{class:'column col-10'},
+					h('input',{
+						class:'form-input',
+						type:'link',
+						placeholder:'Instagram handle',
+						value:this.state.form.instagram,
+						onInput:e => this.updateValue(this.state.form,'instagram',e.target.value)
+					})
+				),
+				h('div',{class:'column col-2'},
+					h('img',{class:'img-responsive',style:'height: 2em',src:'../img/instagram.jpg'})
 				)
 			),
 			h('div',{class:'divider text-center','data-content':'Certifications'}),
