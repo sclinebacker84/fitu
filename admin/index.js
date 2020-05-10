@@ -5,7 +5,7 @@ if(params.get('token') && params.get('email')){
 	history.pushState({},undefined,window.location.href.replace(window.location.search,''))
 }
 
-const IdentityPoolId = 'us-east-1:4bc785c7-871b-4ebe-bd34-22e168724794'
+const IdentityPoolId = 'us-east-1:fc77f43d-2fe4-4855-9626-fc98cd765fe7'
 AWS.config.region = 'us-east-1'
 AWS.config.credentials = new AWS.CognitoIdentityCredentials({IdentityPoolId})
 
@@ -88,28 +88,35 @@ class Auth extends Component {
 	}
 }
 
+class RefreshDatabase extends Component {
+	async refresh(e){
+		this.setState({loading:true})
+		await lambda.invoke({
+			FunctionName:'fitu_refresh_database',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token')
+			})
+		}).promise()
+		this.setState({loading:false})
+		alert('Done')
+	}
+	render(){
+		return h('div',{class:'text-center'},
+			h('button',{class:'btn'+(this.state.loading ? ' loading' : ''),onClick:e => this.refresh(e)},
+				'Refresh Database'
+			)
+		)
+	}
+}
+
 class Approvals extends Component {
 	constructor(props){
 		super(props)
 		this.state.user = params.get('user')
-		this.state.type = params.get('type')
+		this.state.type = 'Change'
 		this.state.changes = []
-		this.state.professions = []
 		this.state.comments = undefined
-		this.refresh()
-	}
-	async refresh(){
-		this.setState({loading:true})
-		const professions = new Set()
-		const r = await dynamodb.get({
-			TableName:'configs',
-			Key:{
-				partitionKey:'fitu_reference_professions'
-			}
-		}).promise()
-		r.Item.data.forEach(r => professions.add(r.profession))
-		this.setState({professions:Array.from(professions), loading:false})
-		this.setState({type:this.state.type || this.state.professions[0]})
+		this.getChange()
 	}
 	async getChange(){
 		this.setState({loading:true})
@@ -169,35 +176,32 @@ class Approvals extends Component {
 		)
 	}
 	render(){
-		return h('div',undefined,
+		return h('div',{class:'container'},
 			h('div',{class:'columns'},
-				h('div',{class:'column col-6'},
-					h('select',{class:'form-select',value:this.state.type,onInput:e => this.setState({type:e.target.value})},
-						this.state.professions.map(p => h('option',{value:p},p))
-					)
-				),
-				h('div',{class:'column col-6'},
-					h('input',{class:'form-input',placeholder:'Enter Email',value:this.state.user,onInput:e => this.setState({user:e.target.value})})
+				h('div',{class:'column col-12'},
+					h('input',{
+						class:'form-input',
+						placeholder:'Enter Email',
+						value:this.state.user,
+						onInput:e => this.setState({user:e.target.value})
+					})
 				)
 			),
-			h('div',{class:'text-center'},
-				h('button',{class:'btn'+(this.state.loading ? ' loading' : ''),onClick:e => this.getChange()},'Refresh')
-			),
 			h(Modal,{id:'rejectionModal',title:'Enter Reason for Rejection',body:this.rejectionModal()}),
-			h('div',undefined,
+			h('div',{class:'mt-2'},
 				this.state.changes.map((c,i) => 
-					h('div',{class:'accordion'},
+					h('div',{class:'accordion',style:'display: grid'},
 					  h('input',{type:'checkbox',id:`a-${i}`,hidden:true}),
 					  h('label',{class:"accordion-header bg-secondary text-center",for:`a-${i}`},
 					    h('i',{class:"icon icon-arrow-right mr-1"}),
-					    `${c.email}`
+					    `${c.sortKey}`
 					  ),
 					  h('div',{class:"accordion-body"},
 					  	h('pre',{style:'height: 15em ; overflow-y: auto'},
 					  		JSON.stringify(c.data,null,2)
 					  	),
 					  	h('div',{class:'btn-group btn-group-block'},
-					  		h('button',{class:'btn btn-success',onClick:e => this.approve(e,c)},'Approve'),
+					  		h('button',{class:'btn btn-success'+(this.state.loading ? ' loading' : ''),onClick:e => this.approve(e,c)},'Approve'),
 					  		h('a',{href:'#rejectionModal',class:'btn',onClick:e => this.setState({c})},'Reject')
 					  	)
 					  )
@@ -233,7 +237,7 @@ class ProfilePictures extends Component {
 					h('input',{class:'form-input',placeholder:'Enter photo URL',onInput:e => this.setState({url:e.target.value})})
 				)
 			),
-			h('div',{class:'text-center'},
+			h('div',{class:'text-center mt-2'},
 				h('button',{class:'btn'+(this.state.loading ? ' loading' : ''),disabled:!(this.state.email && this.state.url)},'Submit')
 			)
 		)
@@ -244,6 +248,10 @@ class Container extends Component {
 	constructor(props){
 		super(props)
 		this.state.screens = [
+			{
+				name:'Refresh Database',
+				icon:'icon-refresh'
+			},
 			{
 				name:'Approvals',
 				icon:'icon-check'
@@ -267,12 +275,22 @@ class Container extends Component {
 				return h(Approvals)
 			case 'Profile Pictures':
 				return h(ProfilePictures)
+			case 'Refresh Database':
+				return h(RefreshDatabase)
 		}
 	}
 	content(){
 		return h('div',{class:'container'},
-			h('div',{class:'text-center'},
-				h('a',{class:'off-canvas-toggle btn', href:'#sidebar'},'Menu')
+			h('div',{class:'navbar bg-secondary mb-2'},
+				h('div',{class:'navbar-section'},
+					h('a',{class:'off-canvas-toggle btn btn-link', href:'#sidebar'},
+						h('i',{class:'icon icon-menu'})
+					)
+				),
+				h('div',{class:'navbar-center'},
+					h('img',{class:'img-responsive',style:'height: 3em',src:'../img/logo.png'})
+				),
+				h('div',{class:'navbar-section'})
 			),
 			h('div',{class:'off-canvas'},
 				h('div',{class:'off-canvas-content',style:'padding: 0px'},

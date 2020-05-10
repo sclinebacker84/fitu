@@ -5,7 +5,7 @@ if(params.get('token') && params.get('email')){
 	history.pushState({},undefined,window.location.href.replace(window.location.search,''))
 }
 
-const IdentityPoolId = 'us-east-1:4bc785c7-871b-4ebe-bd34-22e168724794'
+const IdentityPoolId = 'us-east-1:fc77f43d-2fe4-4855-9626-fc98cd765fe7'
 AWS.config.region = 'us-east-1'
 AWS.config.credentials = new AWS.CognitoIdentityCredentials({IdentityPoolId})
 

@@ -5,93 +5,69 @@ if(params.get('token') && params.get('email')){
 	history.pushState({},undefined,window.location.href.replace(window.location.search,''))
 }
 
-const IdentityPoolId = 'us-east-1:4bc785c7-871b-4ebe-bd34-22e168724794'
+const IdentityPoolId = 'us-east-1:fc77f43d-2fe4-4855-9626-fc98cd765fe7'
 AWS.config.region = 'us-east-1'
 AWS.config.credentials = new AWS.CognitoIdentityCredentials({IdentityPoolId})
 
 const {h,render,Component} = window.preact
 
-const dynamodb = new AWS.DynamoDB.DocumentClient({convertEmptyValues:true})
 const lambda = new AWS.Lambda()
+const dynamodb = new AWS.DynamoDB.DocumentClient({convertEmptyValues:true})
+
+const request = (url,body,method) => {
+	return fetch(url, {
+		method:method || (body ? 'POST' : 'GET'),
+		body:JSON.stringify(body),
+		headers:{
+			'Content-Type':'application/json'
+		}
+	})
+}
 
 /**********************************************/
 
-class Loading extends Component {
-	render(){
-		return h('div',undefined,
-			h('div',{class:'h4 loading'})
-		)
-	}
-}
-
-class Modal extends Component {
-	render(){
-		return h('div',{class:'modal',id:this.props.id || 'modal'},
-			h('a',{href:'#close',class:'modal-overlay'}),
-			h('div',{class:'modal-container'},
-				h('div',{class:'modal-header'},
-					h('a',{href:'#close',class:'btn btn-clear float-right'}),
-					h('div',{class:'modal-title h4'},this.props.title || 'Title')
-				),
-				h('div',{class:'modal-body'},
-					this.body && this.body()
-				),
-				h('div',{class:'modal-footer'},
-					this.footer && this.footer()
-				)
-			)
-		)
-	}
-}
-
-class NewProfessionModal extends Modal {
-	createProfession(e){
-		this.props.createProfession(this.state.profession)
-	}
-	body(){
-		return h('div',undefined,
-			h('div',{class:'form-group'},
-				h('select',{class:'form-select',value:this.state.profession,onInput:e => this.setState({profession:e.target.value})},
-					this.props.professions.map(p => h('option',{value:p},p))
-				),
-				h('a',{class:'btn mt-1',href:'#close',disabled:!this.state.profession,onClick:e => this.createProfession(e)},'Create Profession')
-			)
-		)
-	}
-}
-
-class ProfessionForm extends Component {
+class Profile extends Component {
 	constructor(props){
 		super(props)
-		this.setState({profession:this.props.profession})
+		this.state.form = this.props.form
+		this.state.certs = {}
+		this.certs()
 	}
-	updateValue(o,k,v){
-		o[k] = v
-		this.props.refresh()
+	async certs(){
+		const r = await dynamodb.get({
+			TableName:'configs',
+			Key:{
+				partitionKey:'fitu_certs'
+			}
+		}).promise()
+		const certs = {}
+		r.Item.data.forEach(r => {
+			certs[r.certification] = certs[r.certification] || []
+			certs[r.certification].push(r.institute)
+		})
+		this.setState({certs})
+	}
+	async save(){
+		this.setState({loading:true})
+		await lambda.invoke({
+			FunctionName:'fitu_save_professional',
+			Payload:JSON.stringify(Object.assign(this.state.form, {
+				token:window.localStorage.getItem('token')
+			}))
+		}).promise()
+		this.setState({loading:false})
 	}
 	addCertification(){
-		this.state.profession.certifications.unshift({})
+		this.state.form.certifications.unshift({})
 		this.setState(this.state)
 	}
 	removeCertification(){
-		this.state.profession.certifications.shift()
-		this.props.refresh()
+		this.state.form.certifications.shift()
+		this.setState(this.state)
 	}
-	async save(){
-		if(confirm('Really Save?')){
-			this.state.profession.token = window.localStorage.getItem('token')
-			this.setState({loading:true})
-			const r = await lambda.invoke({
-				FunctionName:'fitu_save_professional',
-				Payload:JSON.stringify(this.state.profession)
-			}).promise()
-			if(r.FunctionError){
-				alert(JSON.parse(r.Payload).errorMessage)
-			}else{
-				alert('Your application was submitted for review.  You will get an email shortly')
-			}
-			this.setState({loading:false})
-		}
+	updateValue(o,k,v){
+		o[k] = v
+		this.setState(this.state)
 	}
 	render(){
 		return h('div',undefined,
@@ -100,32 +76,50 @@ class ProfessionForm extends Component {
 				h('input',{
 					required:true,
 					class:'form-input',
-					value:this.state.profession.name.first,
-					onInput:e => this.updateValue(this.state.profession.name,'first',e.target.value)
+					value:this.state.form.name.first,
+					onInput:e => this.updateValue(this.state.form.name,'first',e.target.value)
 				})
 			),
 			h('div',{class:'form-group'},
 				h('label',{class:'form-label'},'Middle Name'),
 				h('input',{
 					class:'form-input',
-					value:this.state.profession.name.middle,
-					onInput:e => this.updateValue(this.state.profession.name,'middle',e.target.value)
+					value:this.state.form.name.middle,
+					onInput:e => this.updateValue(this.state.form.name,'middle',e.target.value)
 				})
 			),
 			h('div',{class:'form-group'},
 				h('label',{class:'form-label'},'Last Name'),
 				h('input',{
 					class:'form-input',
-					value:this.state.profession.name.last,
-					onInput:e => this.updateValue(this.state.profession.name,'last',e.target.value)
+					value:this.state.form.name.last,
+					onInput:e => this.updateValue(this.state.form.name,'last',e.target.value)
+				})
+			),
+			h('div',{class:'form-group'},
+				h('label',{class:'form-label'},'Phone Number'),
+				h('input',{
+					class:'form-input',
+					type:'tel',
+					value:this.state.form.phone,
+					onInput:e => this.updateValue(this.state.form,'phone',e.target.value)
+				})
+			),
+			h('div',{class:'form-group'},
+				h('label',{class:'form-label'},'Zip Code'),
+				h('input',{
+					class:'form-input',
+					type:'number',
+					value:this.state.form.zip,
+					onInput:e => this.updateValue(this.state.form,'zip',e.target.value)
 				})
 			),
 			h('div',{class:'form-group'},
 				h('label',{class:'form-label'},'Gender'),
 				h('select',{
 					class:'form-select',
-					value:this.state.profession.gender,
-					onInput:e => this.updateValue(this.state.profession,'gender',e.target.value)
+					value:this.state.form.gender,
+					onInput:e => this.updateValue(this.state.form,'gender',e.target.value)
 				},
 					h('option',{value:'Male'},'Male'),
 					h('option',{value:'Female'},'Female')
@@ -136,7 +130,7 @@ class ProfessionForm extends Component {
 				h('button',{class:'btn',onClick:e => this.addCertification()},'Add'),
 				h('button',{class:'btn float-right',onClick:e => this.removeCertification()},'Remove')
 			),
-			this.state.profession.certifications.map((cert,index) => 
+			this.state.form.certifications.map((cert,index) => 
 				h('div',{class:'columns'},
 					h('div',{class:'column col-12 columns'},
 						h('div',{class:'column col-4'},
@@ -146,7 +140,7 @@ class ProfessionForm extends Component {
 								value:cert.name,
 								onInput:e => this.updateValue(cert,'name',e.target.value)
 							},
-							this.props.certifications && Object.keys(this.props.certifications).map(c => 
+							Object.keys(this.state.certs).map(c => 
 								h('option',{value:c},c)
 							))
 						),
@@ -167,111 +161,74 @@ class ProfessionForm extends Component {
 								value:cert.institute,
 								onInput:e => this.updateValue(cert,'institute',e.target.value)
 							},
-							this.props.certifications && this.props.certifications[cert.name] && this.props.certifications[cert.name].map(c => 
-								h('option',{value:c.institute},c.institute)
+							this.state.certs[cert.name] && this.state.certs[cert.name].map(c => 
+								h('option',{value:c},c)
 							))
 						)
 					)
 				)
 			),
 			h('div',{class:'text-center mt-2'},
-				h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,disabled:!this.state.profession.certifications.length,onClick:e => this.save()},'Save')
+				h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,onClick:e => this.save()},'Save')
 			)
 		)
 	}
 }
 
-class Professions extends Component {
+class Schedule extends Component {
 	constructor(props){
 		super(props)
-		this.state.newProfessionModalId = 'npModal'
-		this.state.professions = []
-		this.state.reference = {}
-		this.getProfessions()
-		this.getReferenceData()
-	}
-	async getProfessions(key){
-		const r = await dynamodb.query({
-			TableName:'fitu_professionals',
-			ExclusiveStartKey:key,
-			KeyConditions:{
-				'email':{
-					ComparisonOperator:'EQ',
-					AttributeValueList:[window.localStorage.getItem('email')]
-				}
+		this.state.schedule = this.props.schedule
+		this.state.days = ['Mondays','Tuesdays','Wednesdays','Thursdays','Fridays','Saturdays','Sundays']
+		this.state.times = [
+			{
+				name:'Morning',
+				label:'Morning (6am to 12pm)'
+			},
+			{
+				name:'Midday',
+				label:'Midday (12pm to 5pm)'
+			},
+			{
+				name:'Evening',
+				label:'Evening (5pm to 9pm)'	
 			}
-		}).promise()
-		this.state.professions = this.state.professions.concat(r.Items)
-		if(r.LastEvaluatedKey){
-			this.getQueries(r.LastEvaluatedKey)
-		}else{
-			this.setState(this.state)
-		}
+		]
+		this.state.days.forEach(d => this.state.schedule[d] = this.state.schedule[d] || {})
 	}
-	async getReferenceData(){
-		const r = await dynamodb.get({
-			TableName:'configs',
-			Key:{
-				partitionKey:'fitu_reference_professions'
-			}
-		}).promise()
-		r.Item.data.forEach(r => {
-			this.state.reference[r.profession] = this.state.reference[r.profession] || {}
-			const certifications = this.state.reference[r.profession]
-			certifications[r.certification] = certifications[r.certification] || []
-			certifications[r.certification].push({institute:r.institute,price:r.price})
-		})
+	toggle(d,t,e){
+		this.state.schedule[d][t.name] = e.target.checked
 		this.setState(this.state)
 	}
-	createProfession(profession){
-		if(this.state.professions.find(p => p.profession === profession)){
-			return alert('You already have this profession')
-		}
-		this.state.professions.push({
-			profession:profession,
-			name:{},
-			certifications:[],
-			gender:undefined
-		})
-		this.setState(this.state)
-	}
-	maxPrice(p){
-		if(!this.state.reference[p.profession]){
-			return 0
-		}
-		return p.certifications.reduce((a,c) => {
-			const r = this.state.reference[p.profession][c.name].find(r => r.institute === c.institute)
-			return Math.max(a,r ? r.price : 0)
-		},0)
+	async save(){
+		this.setState({loading:true})
+		await lambda.invoke({
+			FunctionName:'fitu_schedule',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				schedule:this.state.schedule
+			})
+		}).promise()
+		this.setState({loading:false})
 	}
 	render(){
 		return h('div',undefined,
-			h('div',{class:'text-center mb-1'},
-				h('a',{href:`#${this.state.newProfessionModalId}`,class:'btn'},'New Profession'),
-				h(NewProfessionModal,{
-					title:'Choose a Profession',
-					id:this.state.newProfessionModalId,
-					createProfession:p => this.createProfession(p),
-					professions:Object.keys(this.state.reference)
-				})
-			),
-			h('div',undefined,
-				this.state.professions.map(p => 
-					h('div',{class:'accordion'},
-					  h('input',{type:'checkbox',id:`a-${p.profession}`,hidden:true}),
-					  h('label',{class:"accordion-header bg-secondary text-center",for:`a-${p.profession}`},
-					    h('i',{class:"icon icon-arrow-right mr-1"}),
-					    `${p.profession} - Max Price: $${this.maxPrice(p)}`
-					  ),
-					  h('div',{class:"accordion-body"},
-					  	h(ProfessionForm,{
-					  		profession:p,
-					  		certifications:this.state.reference[p.profession],
-					  		refresh:state => this.setState(state || this.state)
-					  	})
-					  )
+			h('div',{style:'height: 30em ; overflow-y: auto'},
+				this.state.days.map(d => h('div',undefined,
+					h('div',{class:'text-center h5'},d),
+					h('div',{class:'columns'},
+						this.state.times.map(t => h('div',{class:'column col-4 col-xs-12 text-center'},
+							h('label',{class:"form-checkbox d-inline-flex"},
+						    	h('input',{class:'form-input',type:'checkbox',checked:this.state.schedule[d][t.name],onInput:e => this.toggle(d,t,e)}),
+						    	h('i',{class:"form-icon"}),
+						    	t.label
+						    )
+						))
 					)
-				)
+				))
+			),
+			h('div',{class:'text-center'},
+				h('button',{class:'btn btn-success'+(this.state.loading ? ' loading' : ''),onClick:e => this.save()},'Save')
 			)
 		)
 	}
@@ -302,13 +259,74 @@ class Auth extends Component {
 class Container extends Component {
 	constructor(props){
 		super(props)
+		this.state.screens = [
+			{
+				name:'Profile',
+				icon:'icon-people'
+			},
+			{
+				name:'Schedule',
+				icon:'icon-time'
+			}
+		]
+		this.state.screen = this.state.screens[0]
+		this.state.form = {certifications:[],name:{},schedule:{}}
+		this.profile()
+	}
+	async profile(){
+		const r = await lambda.invoke({
+			FunctionName:'fitu_get_profile',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token')
+			})
+		}).promise()
+		this.setState({form:Object.assign(this.state.form, JSON.parse(r.Payload))})
 	}
 	hasAuth(){
 		return window.localStorage.getItem('email') && window.localStorage.getItem('token')
 	}
+	changeMenu(e,s){
+		this.setState({screen:s})
+	}
+	screen(){
+		switch(this.state.screen.name){
+			case 'Profile':
+				return h(Profile,{form:this.state.form})
+			case 'Schedule':
+				return h(Schedule,{schedule:this.state.form.schedule})
+		}
+	}
 	content(){
 		return h('div',{class:'container'},
-			h(Professions,{})
+			h('div',{class:'navbar bg-secondary mb-2'},
+				h('div',{class:'navbar-section'},
+					h('a',{class:'off-canvas-toggle btn btn-link', href:'#sidebar'},
+						h('i',{class:'icon icon-menu'})
+					)
+				),
+				h('div',{class:'navbar-center'},
+					h('img',{class:'img-responsive',style:'height: 3em',src:'../img/logo.png'})
+				),
+				h('div',{class:'navbar-section'})
+			),
+			h('div',{class:'off-canvas'},
+				h('div',{class:'off-canvas-content',style:'padding: 0px'},
+					this.screen()
+				),
+				h('div',{class:'off-canvas-sidebar',id:'sidebar'},
+					h('div',{class:'container'},
+						h('ul',{class:'menu'},
+							this.state.screens.map(s => h('li',{class:'menu-item'},
+								h('a',{href:'#close',onClick:e => this.changeMenu(e,s)},
+									h('i',{class:'icon mr-2 '+s.icon}),
+									h('label',{class:'form-label d-inline-flex'+(this.state.screen === s ? ' text-bold' : '')},s.name)
+								)
+							))
+						)
+					)
+				),
+				h('a',{href:'#close',class:'off-canvas-overlay'})
+			)
 		)
 	}
 	render(){
