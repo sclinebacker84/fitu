@@ -24,6 +24,80 @@ class Loading extends Component {
 	}
 }
 
+class Appointments extends Component {
+	constructor(props){
+		super(props)
+		this.state.appointments = []
+		this.getAppointments()
+	}
+	async getAppointments(){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_get_appointments',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				type:'Customer'
+			})
+		}).promise()
+		const appointments = JSON.parse(r.Payload)
+		this.setState({loading:false, appointments:appointments})
+	}
+	async start(appointment){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_appointment_action',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				sortKey:appointment.sortKey,
+				type:'Customer',
+				cancel:false
+			})
+		}).promise()
+		this.setState({loading:false})
+		await this.getAppointments()
+	}
+	async cancel(appointment){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_appointment_action',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				sortKey:appointment.sortKey,
+				type:'Customer',
+				cancel:true
+			})
+		}).promise()
+		this.setState({loading:false})
+		await this.getAppointments()
+	}
+	content(){
+		return h('div',undefined,
+			!this.state.appointments.length ? 
+			  h('div',{class:'empty'},
+			  	h('div',{class:'empty-title h5'},'No Pending Appointments')
+			  )
+			:
+			this.state.appointments.map((request,i) => h('div',{class:'card text-center'},
+				h('div',{class:'card-header'},
+					h('div',{class:'card-title h6'},request.sortKey)
+				),
+				h('div',{class:'card-body'},
+					h('div',{class:'text-center'},request.date)
+				),
+				h('div',{class:'card-footer'},
+					h('div',{class:'btn-group'},
+						h('button',{class:'btn btn-success',onClick:e => this.start(request)},'Start'),
+						h('button',{class:'btn',onClick:e => this.cancel(request)},'Cancel')
+					)
+				)
+			))
+		)
+	}
+	render(){
+		return this.state.loading ? h('div',{class:'loading'}) : this.content()
+	}
+}
+
 class ScheduleModal extends Component {
 	constructor(props){
 		super(props)
@@ -76,7 +150,7 @@ class ScheduleModal extends Component {
 		}
 	}
 	async request(){
-		if(confirm('Really make this request')){
+		if(confirm('Really make this request?')){
 			this.setState({loading:true})
 			await lambda.invoke({
 				FunctionName:'fitu_schedule_request',
@@ -346,6 +420,10 @@ class Container extends Component {
 			{
 				name:'Profile',
 				icon:'icon-people'
+			},
+			{
+				name:'Appointments',
+				icon:'icon-flag'
 			}
 		]
 		this.state.screen = this.state.screens[0]
@@ -374,6 +452,8 @@ class Container extends Component {
 				return h(Search)
 			case 'Profile':
 				return h(Profile, {form:this.state.form})
+			case 'Appointments':
+				return h(Appointments, {form:this.state.form})
 		}
 	}
 	content(){

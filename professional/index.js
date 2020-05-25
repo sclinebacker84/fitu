@@ -276,6 +276,15 @@ class Requests extends Component {
 		this.state.requests = []
 		this.getRequests()
 	}
+	getNextMoment = (day,time) => {
+		day = day.substring(0,day.length - 1)
+		var weekDayToFind = moment().day(day).weekday(); //change to searched day name
+		var searchDate = moment(); //now or change to any date
+		while (searchDate.weekday() !== weekDayToFind){ 
+		  searchDate.add(1, 'day'); 
+		}
+		return searchDate.set('hour', parseInt(time)).set('minute', 0).set('second', 0)
+	}
 	async getRequests(){
 		this.setState({loading:true})
 		const r = await lambda.invoke({
@@ -289,7 +298,8 @@ class Requests extends Component {
 			const schedule = []
 			Object.keys(request.schedule).forEach(d => {
 				Object.keys(request.schedule[d]).forEach(t => {
-					schedule.push({day:d,time:t})
+					const m = this.getNextMoment(d,t)
+					schedule.push({day:d,time:t,label:m.toString()})
 				})
 			})
 			request.schedule = schedule
@@ -331,7 +341,7 @@ class Requests extends Component {
 							h('label',{class:"form-radio d-inline-flex"},
 						    	h('input',{class:'form-input',name:`r-${i}`,value:request.k,type:'radio',onInput:e => this.toggle(request,s,k)}),
 						    	h('i',{class:"form-icon"}),
-						    	`${s.day}: ${s.time}`
+						    	`${s.label}`
 						    )
 						))
 					)
@@ -340,6 +350,80 @@ class Requests extends Component {
 					!!request.s && h('div',{class:'btn-group'},
 						h('button',{class:'btn btn-success',onClick:e => this.respond(request,true)},'Accept'),
 						h('button',{class:'btn',onClick:e => this.respond(request,false)},'Decline')
+					)
+				)
+			))
+		)
+	}
+	render(){
+		return this.state.loading ? h('div',{class:'loading'}) : this.content()
+	}
+}
+
+class Appointments extends Component {
+	constructor(props){
+		super(props)
+		this.state.appointments = []
+		this.getAppointments()
+	}
+	async getAppointments(){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_get_appointments',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				type:'Professional'
+			})
+		}).promise()
+		const appointments = JSON.parse(r.Payload)
+		this.setState({loading:false, appointments:appointments})
+	}
+	async start(appointment){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_appointment_action',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				sortKey:appointment.sortKey,
+				type:'Professional',
+				cancel:false
+			})
+		}).promise()
+		this.setState({loading:false})
+		await this.getAppointments()
+	}
+	async cancel(appointment){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_appointment_action',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				sortKey:appointment.sortKey,
+				type:'Professional',
+				cancel:true
+			})
+		}).promise()
+		this.setState({loading:false})
+		await this.getAppointments()
+	}
+	content(){
+		return h('div',undefined,
+			!this.state.appointments.length ? 
+			  h('div',{class:'empty'},
+			  	h('div',{class:'empty-title h5'},'No Pending Appointments')
+			  )
+			:
+			this.state.appointments.map((request,i) => h('div',{class:'card text-center'},
+				h('div',{class:'card-header'},
+					h('div',{class:'card-title h6'},request.sortKey)
+				),
+				h('div',{class:'card-body'},
+					h('div',{class:'text-center'},request.date)
+				),
+				h('div',{class:'card-footer'},
+					h('div',{class:'btn-group'},
+						h('button',{class:'btn btn-success',onClick:e => this.start(request)},'Start'),
+						h('button',{class:'btn',onClick:e => this.cancel(request)},'Cancel')
 					)
 				)
 			))
@@ -387,6 +471,10 @@ class Container extends Component {
 			{
 				name:'Requests',
 				icon:'icon-flag'
+			},
+			{
+				name:'Appointments',
+				icon:'icon-mail'
 			}
 		]
 		this.state.screen = this.state.screens[0]
@@ -415,6 +503,8 @@ class Container extends Component {
 				return h(Profile,{form:this.state.form})
 			case 'Requests':
 				return h(Requests,{form:this.state.form})
+			case 'Appointments':
+				return h(Appointments,{form:this.state.form})
 			case 'Schedule':
 				return h(Schedule,{schedule:this.state.form.schedule})
 		}
