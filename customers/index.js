@@ -24,21 +24,169 @@ class Loading extends Component {
 	}
 }
 
-class Modal extends Component {
+class ScheduleModal extends Component {
+	constructor(props){
+		super(props)
+		this.state.schedule = {}
+		this.state.count = 0
+		this.state.days = ['Mondays','Tuesdays','Wednesdays','Thursdays','Fridays','Saturdays','Sundays']
+		this.state.times = [
+			{
+				name:'6',
+				label:'6am - 8am'
+			},
+			{
+				name:'8',
+				label:'8am - 10am'
+			},
+			{
+				name:'10',
+				label:'10am - 12pm'
+			},
+			{
+				name:'12',
+				label:'12pm - 2pm'
+			},
+			{
+				name:'14',
+				label:'2pm - 4pm'
+			},
+			{
+				name:'16',
+				label:'4pm - 6pm'
+			},
+			{
+				name:'18',
+				label:'6pm - 8pm'
+			},
+			{
+				name:'20',
+				label:'8pm - 10pm'
+			}
+		]
+		this.state.days.forEach(d => this.state.schedule[d] = this.state.schedule[d] || {})
+	}
+	toggle(d,t,e){
+		if(e.target.checked && this.state.count === 3){
+			this.state.schedule[d][t.name] = false
+			this.setState(this.state)
+		}else{
+			this.state.schedule[d][t.name] = e.target.checked
+			this.setState({count:this.state.count + (e.target.checked ? 1 : -1)})
+		}
+	}
+	async request(){
+		if(confirm('Really make this request')){
+			this.setState({loading:true})
+			await lambda.invoke({
+				FunctionName:'fitu_schedule_request',
+				Payload:JSON.stringify({
+					token:window.localStorage.getItem('token'),
+					schedule:this.state.schedule,
+					professional:this.props.result.sortKey
+				})
+			}).promise()
+			this.setState({loading:false})
+		}
+	}
+	checked(d,t){
+		return this.state.schedule[d][t.name]
+	}
 	render(){
-		return h('div',{class:'modal',id:this.props.id || 'modal'},
+		return h('div',{class:'modal',id:'scheduleModal'},
 			h('a',{href:'#close',class:'modal-overlay'}),
 			h('div',{class:'modal-container'},
 				h('div',{class:'modal-header'},
 					h('a',{href:'#close',class:'btn btn-clear float-right'}),
-					h('div',{class:'modal-title h4'},this.props.title || 'Title')
+					h('div',{class:'modal-title h4'},'Select upto 3 times that work for you')
 				),
 				h('div',{class:'modal-body'},
-					this.body && this.body()
+					h('div',{style:'height: 30em ; overflow-y: auto'},
+						this.state.days.filter(d => !this.props.result.schedule || this.props.result.schedule[d]).map(d => h('div',undefined,
+							h('div',{class:'text-center h5'},d),
+							h('div',{class:'columns'},
+								this.state.times.filter(t => !this.props.result.schedule || this.props.result.schedule[d][t.name]).map(t => h('div',{class:'column col-4 col-xs-12 text-center'},
+									h('label',{class:"form-checkbox d-inline-flex"},
+								    	h('input',{class:'form-input',type:'checkbox',checked:this.checked(d,t),onInput:e => this.toggle(d,t,e)}),
+								    	h('i',{class:"form-icon"}),
+								    	t.label
+								    )
+								))
+							)
+						))
+					)
 				),
 				h('div',{class:'modal-footer'},
-					this.footer && this.footer()
+					h('div',{class:'text-center'},
+						h('button',{class:'btn btn-success'+(this.state.loading ? ' loading' : ''),onClick:e => this.request()},'Request')
+					)
 				)
+			)
+		)
+	}
+}
+
+class Profile extends Component {
+	constructor(props){
+		super(props)
+		this.state.form = this.props.form
+	}
+
+	async save(){
+		this.setState({loading:true})
+		await lambda.invoke({
+			FunctionName:'fitu_save_customer',
+			Payload:JSON.stringify(Object.assign(this.state.form, {
+				token:window.localStorage.getItem('token')
+			}))
+		}).promise()
+		this.setState({loading:false})
+	}
+	updateValue(o,k,v){
+		o[k] = v
+		this.setState(this.state)
+	}
+	render(){
+		return h('div',undefined,
+			this.state.form.hasPending && h('div',{class:'toast toast-warning text-center'},'Pending Changes'),
+			h('div',{class:'form-group'},
+				h('label',{class:'form-label'},'First Name'),
+				h('input',{
+					required:true,
+					class:'form-input',
+					value:this.state.form.name.first,
+					onInput:e => this.updateValue(this.state.form.name,'first',e.target.value)
+				})
+			),
+			h('div',{class:'form-group'},
+				h('label',{class:'form-label'},'Middle Name'),
+				h('input',{
+					class:'form-input',
+					value:this.state.form.name.middle,
+					onInput:e => this.updateValue(this.state.form.name,'middle',e.target.value)
+				})
+			),
+			h('div',{class:'form-group'},
+				h('label',{class:'form-label'},'Last Name'),
+				h('input',{
+					class:'form-input',
+					value:this.state.form.name.last,
+					onInput:e => this.updateValue(this.state.form.name,'last',e.target.value)
+				})
+			),
+			h('div',{class:'form-group'},
+				h('label',{class:'form-label'},'Gender'),
+				h('select',{
+					class:'form-select',
+					value:this.state.form.gender,
+					onInput:e => this.updateValue(this.state.form,'gender',e.target.value)
+				},
+					h('option',{value:'Male'},'Male'),
+					h('option',{value:'Female'},'Female')
+				)
+			),
+			h('div',{class:'text-center mt-2'},
+				h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,onClick:e => this.save()},'Save')
 			)
 		)
 	}
@@ -48,10 +196,11 @@ class Search extends Component {
 	constructor(props){
 		super(props)
 		this.state.results = []
+		this.state.result = {}
 		this.state.professions = []
 		this.state.zip = 22030
 		this.state.radiuses = [5,10,20,40,100]
-		this.state.radius = this.state.radiuses[0]
+		this.state.radius = this.state.radiuses[1]
 		this.state.genders = ['All Genders','Male','Female']
 		this.state.gender = this.state.genders[0]
 		this.reference()
@@ -92,6 +241,17 @@ class Search extends Component {
 	disableSearch(){
 		return !(this.state.profession && this.state.zip && this.state.radius && this.state.gender)
 	}
+	async setResult(result){
+		const r = await lambda.invoke({
+			FunctionName:'fitu_get_availability',
+			Payload:JSON.stringify({
+				professional:result.sortKey,
+				token:window.localStorage.getItem('token')
+			})
+		}).promise()
+		result.schedule = JSON.parse(r.Payload)
+		this.setState({result})
+	}
 	render(){
 		return h('div',undefined,
 			h('div',{class:'columns'},
@@ -117,6 +277,7 @@ class Search extends Component {
 			h('div',{class:'text-center mt-1 mb-1'},
 				h('button',{class:'btn'+(this.state.loading ? ' loading' : ''),disabled:this.disableSearch(),onClick:e => this.search(e)},'Search')
 			),
+			h(ScheduleModal,{result:this.state.result}),
 			h('div',{class:'container'},
 				!this.state.results.length ? 
 				  h('div',{class:'empty'},
@@ -125,7 +286,12 @@ class Search extends Component {
 				: this.state.results.map(result => 
 					h('div',{class:'card text-center'},
 						h('div',{class:'card-image'},
-							h('img',{class:'img-responsive d-inline-flex',style:'height: 5em',src:result.image || '../img/generic-profile.png'})
+							h('img',{class:'img-responsive d-inline-flex float-left',style:'height: 5em',src:result.image || '../img/generic-profile.png'}),
+							h('div',{class:'float-right'},
+								result.instagram && h('a',{class:'d-inline-flex',target:'_blank',href:`https://www.instagram.com/${result.instagram.replace('@','')}`},
+									h('img',{class:'img-responsive',style:'height: 2em',src:'../img/instagram.jpg'})
+								)
+							)
 						),
 						h('div',{class:'card-header'},
 							h('div',{class:'card-title h5'},`${result.name.first} ${result.name.middle || ''} ${result.name.last}`)
@@ -136,9 +302,7 @@ class Search extends Component {
 						h('div',{class:'card-footer'},
 							h('div',{class:'columns'},
 								h('div',{class:'column col-4 col-mx-auto text-center'},
-									result.instagram && h('a',{class:'d-inline-flex',target:'_blank',href:`https://www.instagram.com/${result.instagram.replace('@','')}`},
-										h('img',{class:'img-responsive',style:'height: 2em',src:'../img/instagram.jpg'})
-									)
+									h('a',{class:'btn',href:'#scheduleModal',onClick:e => this.setResult(result)},'Schedule')
 								)
 							)
 						)
@@ -178,9 +342,25 @@ class Container extends Component {
 			{
 				name:'Search',
 				icon:'icon-search'
+			},
+			{
+				name:'Profile',
+				icon:'icon-people'
 			}
 		]
 		this.state.screen = this.state.screens[0]
+		this.state.form = {name:{}}
+		this.profile()
+	}
+	async profile(){
+		const r = await lambda.invoke({
+			FunctionName:'fitu_get_profile',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				type:'Customer'
+			})
+		}).promise()
+		this.setState({form:Object.assign(this.state.form, JSON.parse(r.Payload))})
 	}
 	hasAuth(){
 		return window.localStorage.getItem('email') && window.localStorage.getItem('token')
@@ -192,6 +372,8 @@ class Container extends Component {
 		switch(this.state.screen.name){
 			case 'Search':
 				return h(Search)
+			case 'Profile':
+				return h(Profile, {form:this.state.form})
 		}
 	}
 	content(){

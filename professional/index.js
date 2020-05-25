@@ -198,16 +198,36 @@ class Schedule extends Component {
 		this.state.days = ['Mondays','Tuesdays','Wednesdays','Thursdays','Fridays','Saturdays','Sundays']
 		this.state.times = [
 			{
-				name:'Morning',
-				label:'Morning (6am to 12pm)'
+				name:'6',
+				label:'6am - 8am'
 			},
 			{
-				name:'Midday',
-				label:'Midday (12pm to 5pm)'
+				name:'8',
+				label:'8am - 10am'
 			},
 			{
-				name:'Evening',
-				label:'Evening (5pm to 9pm)'	
+				name:'10',
+				label:'10am - 12pm'
+			},
+			{
+				name:'12',
+				label:'12pm - 2pm'
+			},
+			{
+				name:'14',
+				label:'2pm - 4pm'
+			},
+			{
+				name:'16',
+				label:'4pm - 6pm'
+			},
+			{
+				name:'18',
+				label:'6pm - 8pm'
+			},
+			{
+				name:'20',
+				label:'8pm - 10pm'
 			}
 		]
 		this.state.days.forEach(d => this.state.schedule[d] = this.state.schedule[d] || {})
@@ -250,6 +270,86 @@ class Schedule extends Component {
 	}
 }
 
+class Requests extends Component {
+	constructor(props){
+		super(props)
+		this.state.requests = []
+		this.getRequests()
+	}
+	async getRequests(){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_get_requests',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token')
+			})
+		}).promise()
+		const requests = JSON.parse(r.Payload)
+		requests.forEach(request => {
+			const schedule = []
+			Object.keys(request.schedule).forEach(d => {
+				Object.keys(request.schedule[d]).forEach(t => {
+					schedule.push({day:d,time:t})
+				})
+			})
+			request.schedule = schedule
+		})
+		this.setState({loading:false, requests:requests})
+	}
+	toggle(request,s,k){
+		request.s = s
+		request.k = k
+		this.setState(this.state)
+	}
+	async respond(request, approved){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_respond',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token'),
+				approved:approved,
+				request:request
+			})
+		}).promise()
+		this.setState({loading:false})
+		await this.getRequests()
+	}
+	content(){
+		return h('div',undefined,
+			!this.state.requests.length ? 
+			  h('div',{class:'empty'},
+			  	h('div',{class:'empty-title h5'},'No Pending Requests')
+			  )
+			:
+			this.state.requests.map((request,i) => h('div',{class:'card text-center'},
+				h('div',{class:'card-header'},
+					h('div',{class:'card-title h6'},request.sortKey)
+				),
+				h('div',{class:'card-body'},
+					h('ul',{class:'menu'},
+						request.schedule.map((s,k) => h('li',{class:'menu-item'},
+							h('label',{class:"form-radio d-inline-flex"},
+						    	h('input',{class:'form-input',name:`r-${i}`,value:request.k,type:'radio',onInput:e => this.toggle(request,s,k)}),
+						    	h('i',{class:"form-icon"}),
+						    	`${s.day}: ${s.time}`
+						    )
+						))
+					)
+				),
+				h('div',{class:'card-footer'},
+					!!request.s && h('div',{class:'btn-group'},
+						h('button',{class:'btn btn-success',onClick:e => this.respond(request,true)},'Accept'),
+						h('button',{class:'btn',onClick:e => this.respond(request,false)},'Decline')
+					)
+				)
+			))
+		)
+	}
+	render(){
+		return this.state.loading ? h('div',{class:'loading'}) : this.content()
+	}
+}
+
 class Auth extends Component {
 	async auth(e){
 		e.preventDefault()
@@ -283,6 +383,10 @@ class Container extends Component {
 			{
 				name:'Schedule',
 				icon:'icon-time'
+			},
+			{
+				name:'Requests',
+				icon:'icon-flag'
 			}
 		]
 		this.state.screen = this.state.screens[0]
@@ -293,7 +397,8 @@ class Container extends Component {
 		const r = await lambda.invoke({
 			FunctionName:'fitu_get_profile',
 			Payload:JSON.stringify({
-				token:window.localStorage.getItem('token')
+				token:window.localStorage.getItem('token'),
+				type:'Professional'
 			})
 		}).promise()
 		this.setState({form:Object.assign(this.state.form, JSON.parse(r.Payload))})
@@ -308,6 +413,8 @@ class Container extends Component {
 		switch(this.state.screen.name){
 			case 'Profile':
 				return h(Profile,{form:this.state.form})
+			case 'Requests':
+				return h(Requests,{form:this.state.form})
 			case 'Schedule':
 				return h(Schedule,{schedule:this.state.form.schedule})
 		}
