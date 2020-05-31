@@ -24,7 +24,24 @@ const request = (url,body,method) => {
 	})
 }
 
+const buildTimes = () => {
+	const times = []
+	const hourLogic = (i) => i > 11 ? i === 12 ? '12pm' : `${i-12}pm` : `${i}am`
+	for(let i=6 ; i <= 20 ; i++){
+		times.push({name:`${i}`, label:`${hourLogic(i)} - ${hourLogic(i+1)}`})
+	}
+	return times
+}
+
 /**********************************************/
+
+class Loading extends Component {
+	render(){
+		return h('div',undefined,
+			h('div',{class:'h4 loading'})
+		)
+	}
+}
 
 class Profile extends Component {
 	constructor(props){
@@ -196,40 +213,7 @@ class Schedule extends Component {
 		super(props)
 		this.state.schedule = this.props.schedule
 		this.state.days = ['Mondays','Tuesdays','Wednesdays','Thursdays','Fridays','Saturdays','Sundays']
-		this.state.times = [
-			{
-				name:'6',
-				label:'6am - 8am'
-			},
-			{
-				name:'8',
-				label:'8am - 10am'
-			},
-			{
-				name:'10',
-				label:'10am - 12pm'
-			},
-			{
-				name:'12',
-				label:'12pm - 2pm'
-			},
-			{
-				name:'14',
-				label:'2pm - 4pm'
-			},
-			{
-				name:'16',
-				label:'4pm - 6pm'
-			},
-			{
-				name:'18',
-				label:'6pm - 8pm'
-			},
-			{
-				name:'20',
-				label:'8pm - 10pm'
-			}
-		]
+		this.state.times = buildTimes()
 		this.state.days.forEach(d => this.state.schedule[d] = this.state.schedule[d] || {})
 	}
 	toggle(d,t,e){
@@ -456,6 +440,43 @@ class Auth extends Component {
 	}
 }
 
+class Rates extends Component {
+	constructor(props){
+		super(props)
+		this.rates()
+	}
+	async rates(){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_get_rates',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token')
+			})
+		}).promise()
+		const rates = JSON.parse(r.Payload)
+		this.setState({loading:false, rates:rates})
+	}
+	content(){
+		return h('table',{class:'table table-striped'},
+			h('thead',undefined,
+				h('tr',undefined,
+					h('th',undefined,'Profession'),
+					h('th',undefined,'Rate')
+				)
+			),
+			h('tbody',undefined,
+				this.state.rates.map(r => h('tr',undefined,
+					h('td',undefined,r.profession),
+					h('td',undefined,r.rate)	
+				))
+			)
+		)
+	}
+	render(){
+		return this.state.loading ? h(Loading) : this.content()
+	}
+}
+
 class Container extends Component {
 	constructor(props){
 		super(props)
@@ -475,6 +496,10 @@ class Container extends Component {
 			{
 				name:'Appointments',
 				icon:'icon-mail'
+			},
+			{
+				name:'Rates',
+				icon:'icon-bookmark'
 			}
 		]
 		this.state.screen = this.state.screens[0]
@@ -507,6 +532,8 @@ class Container extends Component {
 				return h(Appointments,{form:this.state.form})
 			case 'Schedule':
 				return h(Schedule,{schedule:this.state.form.schedule})
+			case 'Rates':
+				return h(Rates,{})
 		}
 	}
 	content(){

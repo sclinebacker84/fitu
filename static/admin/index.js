@@ -128,15 +128,14 @@ class Approvals extends Component {
 				token:window.localStorage.getItem('token')
 			})
 		}).promise()
-		this.setState({loading:false,changes:JSON.parse(r.Payload)})
+		const changes = JSON.parse(r.Payload)
+		this.setState({loading:false,changes:changes})
 	}
 	async approve(e,c){
 		this.setState({loading:true})
 		const r = await lambda.invoke({
 			FunctionName:'fitu_make_decision',
 			Payload:JSON.stringify({
-				user:c.email,
-				type:c.type,
 				data:c.data,
 				approved:true,
 				token:window.localStorage.getItem('token')
@@ -152,8 +151,6 @@ class Approvals extends Component {
 			const r = await lambda.invoke({
 				FunctionName:'fitu_make_decision',
 				Payload:JSON.stringify({
-					user:this.state.c.email,
-					type:this.state.c.type,
 					data:this.state.c.data,
 					approved:false,
 					comments:this.state.comments,
