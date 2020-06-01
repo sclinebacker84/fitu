@@ -178,91 +178,64 @@ class ScheduleModal extends Component {
 }
 
 class Payment extends Component {
-	getCardNonce(e){
-		e.preventDefault()
-		this.setState({loading:true})
-		this.state.paymentForm.requestCardNonce()
-	}
 	componentDidMount(){
-		this.state.paymentForm = new SqPaymentForm({
-			applicationId: "sandbox-sq0idb-qw9BPTE_YFD3mmrwzt_V8A",
-			inputClass:'form-input',
-			autoBuild: false,
-           	cardNumber: {
-           		elementId: 'sq-card-number',
-           		placeholder: 'Card Number'
-           	},
-           	cvv: {
-           		elementId: 'sq-cvv',
-           		placeholder: 'CVV'
-           	},
-           	expirationDate: {
-           		elementId: 'sq-expiration-date',
-           		placeholder: 'MM/YY'
-           	},
-           	postalCode: {
-           		elementId: 'sq-postal-code',
-           		placeholder: 'Postal'
-           	},
-           	callbacks: {
-           		cardNonceResponseReceived: async (errors, nonce, cardData) => {
-           			if (errors) {
-           				console.error('Encountered errors:')
-           				errors.forEach(function (error) {
-           					console.error('  ' + error.message)
-           				});
-           				alert('Encountered errors, check browser developer console for more details')
-           				return
-           			}
-           			await lambda.invoke({
-						FunctionName:'fitu_update_payment',
-						Payload:JSON.stringify({
-							token:window.localStorage.getItem('token'),
-							nonce:nonce,
-							cardData:cardData
-						})
-					}).promise()
-					this.setState({loading:false})
-					this.props.onPaymentSave()
-           		}
-           	}
-        })
-        this.state.paymentForm.build()
+		this.state.stripe = Stripe('pk_test_lSpMMl862vJHi5zAa7AErlgg00EenMRuXN')
+		const elements = this.state.stripe.elements()
+		const style = {
+		  base: {
+		    color: '#32325d',
+		    fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+		    fontSmoothing: 'antialiased',
+		    fontSize: '16px',
+		    '::placeholder': {
+		      color: '#aab7c4'
+		    }
+		  },
+		  invalid: {
+		    color: '#fa755a',
+		    iconColor: '#fa755a'
+		  }
+		}
+		this.state.card = elements.create('card',{style})
+		this.state.card.mount('#card-element')
+		this.state.card.on('change', function(event) {
+		  var displayError = document.getElementById('card-errors');
+		  if (event.error) {
+		    displayError.textContent = event.error.message;
+		  } else {
+		    displayError.textContent = '';
+		  }
+		})
+	}
+	onSubmit(e){
+		e.preventDefault()
+		this.state.stripe.createToken(this.state.card).then(async (result) => {
+		    if (result.error) {
+		      var errorElement = document.getElementById('card-errors')
+		      errorElement.textContent = result.error.message
+		    } else {
+		    	this.setState({loading:true})
+				await lambda.invoke({
+					FunctionName:'fitu_update_payment',
+					Payload:JSON.stringify({
+						token:window.localStorage.getItem('token'),
+						nonce:result.token.id
+					})
+				}).promise()
+				this.setState({loading:false})
+				this.props.onPaymentSave()
+		    }
+		})
 	}
 	content(){
-		return h('div',undefined,
-			h('div',{id:'form-container'},
-				h('div',{class:'text-center'},
-					h('img',{class:'img-responsive d-inline-flex',src:'../lib/square.png',style:'height: 5em'}),
-				),
-				h('div',{class:'form-group'},
-					h('label',{class:'form-label'},'Card Number'),
-					h('input',{
-						id:'sq-card-number'
-					})
-				),
-				h('div',{class:'form-group'},
-					h('label',{class:'form-label'},'CVV'),
-					h('input',{
-						id:'sq-cvv'
-					})
-				),
-				h('div',{class:'form-group'},
-					h('label',{class:'form-label'},'Expiration Date'),
-					h('input',{
-						id:'sq-expiration-date'
-					})
-				),
-				h('div',{class:'form-group'},
-					h('label',{class:'form-label'},'Postal Code'),
-					h('input',{
-						id:'sq-postal-code'
-					})
-				),
-				h('div',{class:'text-center mt-2'},
-					h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,onClick:e => this.getCardNonce(e)},'Save Payment Info'),
-					h('button',{class:`btn ml-1 ${this.state.loading ? 'loading' : ''}`,onClick:e => this.togglePaymentEditing(e)},'Cancel')
-				)
+		return h('form',{id:'card-form',onSubmit:e => this.onSubmit(e)},
+			h('div',{class:'text-center'},
+				h('div',{id:'card-element'}),
+				h('div',{id:'card-errors',role:'alert'})
+			),
+			h('div',{class:'text-center mt-2'},
+				h('button',{class:'btn btn-success'},'Save Payment Info'),
+				h('button',{class:'btn ml-1',onClick:e => this.props.onPaymentCancel()},'Cancel')
 			)
 		)
 	}
@@ -289,6 +262,13 @@ class Profile extends Component {
 	updateValue(o,k,v){
 		o[k] = v
 		this.setState(this.state)
+	}
+	onPaymentSave(){
+		this.state.editingPayment = false
+		this.props.refresh()
+	}
+	onPaymentCancel(){
+		this.setState({editingPayment:false})
 	}
 	render(){
 		return h('div',undefined,
@@ -336,31 +316,25 @@ class Profile extends Component {
 				h('div',{class:'divider text-center','data-content':'Payment Details'}),
 				this.state.editingPayment ? h(Payment,{
 					form:this.props.form,
-					onPaymentSave:() => {
-						this.state.editingPayment = false
-						this.props.refresh()
-					}
+					onPaymentSave:() => this.onPaymentSave(),
+					onPaymentCancel:() => this.onPaymentCancel()
 				}) : h('div',{class:'text-center'},
-					h('div',{class:'columns'},
-						h('div',{class:'column col-3'},
+					!!this.props.form.payment.card && h('div',{class:'columns'},
+						h('div',{class:'column col-4'},
 							h('label',{class:'form-label text-bold'},'Last 4'),
-							h('label',undefined,this.props.form.payment.last_4)
+							h('label',undefined,this.props.form.payment.card.last4)
 						),
-						h('div',{class:'column col-3'},
+						h('div',{class:'column col-4'},
 							h('label',{class:'form-label text-bold'},'Brand'),
-							h('label',undefined,this.props.form.payment.card_brand)
+							h('label',undefined,this.props.form.payment.card.brand)
 						),
-						h('div',{class:'column col-3'},
+						h('div',{class:'column col-4'},
 							h('label',{class:'form-label text-bold'},'Expiry'),
-							h('label',undefined,`${this.props.form.payment.exp_month}/${this.props.form.payment.exp_year}`)
-						),
-						h('div',{class:'column col-3'},
-							h('label',{class:'form-label text-bold'},'Zipcode'),
-							h('label',undefined,this.props.form.payment.billing_postal_code)
+							h('label',undefined,`${this.props.form.payment.card.exp_month}/${this.props.form.payment.card.exp_year}`)
 						)
 					),
 					h('div',{class:'btn-group d-inline-flex'},
-						h('button',{class:'btn',onClick:e => this.setState({editingPayment:true})}, this.props.form.payment ? 'Update Payment Info' : 'Add Payment Info')
+						h('button',{class:'btn',onClick:e => this.setState({editingPayment:true})}, this.props.form.payment.card ? 'Update Payment Info' : 'Add Payment Info')
 					)
 				)
 			)
@@ -407,11 +381,11 @@ class Search extends Component {
 			})
 		}).promise()
 		const results = JSON.parse(r.Payload)
-		results.forEach(r => r.level = r.certifications.reduce((a,c) => {
-			a[c.profession] = a[c.profession] || 0
-			a[c.profession]++
-			return a
-		},{}))
+		results.forEach(r => {
+			r.professions.forEach(r => {
+				r.cost = Math.round(100*r.cost)/100
+			})
+		})
 		this.setState({loading:false,results:results})
 	}
 	disableSearch(){
@@ -473,7 +447,7 @@ class Search extends Component {
 							h('div',{class:'card-title h5'},`${result.name.first} ${result.name.middle || ''} ${result.name.last}`)
 						),
 						h('div',{class:'card-body'},
-							Object.keys(result.level).map(r => h('div',{class:'h6'},`${r} (Level: ${result.level[r]}) ($${result.rate}/hr)`))
+							result.professions.map(r => h('div',{class:'h6'},`${r.profession} (Level: ${r.level}) ($${r.cost}/hr)`))
 						),
 						h('div',{class:'card-footer'},
 							h('div',{class:'columns'},
