@@ -216,7 +216,7 @@ class Payment extends Component {
 		    } else {
 		    	this.setState({loading:true})
 				await lambda.invoke({
-					FunctionName:'fitu_update_payment',
+					FunctionName:'fitu_update_customer_payment',
 					Payload:JSON.stringify({
 						token:window.localStorage.getItem('token'),
 						nonce:result.token.id
