@@ -179,6 +179,9 @@ class Approvals extends Component {
 			h('div',{class:'mt-2'},
 				!this.state.changes.length ? 
 				  h('div',{class:'empty'},
+				  	h('div',{class:'text-center'},
+				  		h('button',{class:'btn',onClick:e => this.getChange()},'Refresh')
+				  	),
 				  	h('div',{class:'empty-title h5'},'No Pending Approvals')
 				  )
 				: this.state.changes.map((c,i) => 

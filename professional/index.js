@@ -43,93 +43,6 @@ class Loading extends Component {
 	}
 }
 
-class Payment extends Component {
-	componentDidMount(){
-		this.state.stripe = Stripe('pk_test_lSpMMl862vJHi5zAa7AErlgg00EenMRuXN')
-	}
-	onSubmit(e){
-		e.preventDefault()
-		this.state.stripe.createToken('bank_account',{
-			country:'US',
-			currency:'usd',
-			routing_number:this.state.routing,
-			account_number:this.state.account,
-			account_holder_name:this.state.name,
-			account_holder_type:'individual'
-		}).then(async (result) => {
-		    if (result.error) {
-		      console.error(result.error)
-		    } else {
-		    	this.setState({loading:true})
-				const r = await lambda.invoke({
-					FunctionName:'fitu_update_professional_payment',
-					Payload:JSON.stringify({
-						token:window.localStorage.getItem('token'),
-						nonce:result.token.id,
-						tos:{
-							ip:IP,
-							user_agent:navigator.userAgent
-						}
-					})
-				}).promise()
-				this.setState({loading:false})
-				this.props.onPaymentSave(JSON.parse(r.Payload))
-		    }
-		})
-	}
-	content(){
-		return h('form',{id:'card-form',onSubmit:e => this.onSubmit(e)},
-			this.props.form.payment.bank && h('div',undefined,
-				h('div',{class:'divider text-center','data-content':'Old Account Information'}),
-				h('div',{class:'columns text-center'},
-					h('div',{class:'column col-6'},
-						h('label',{class:'form-label text-bold'},'Last 4'),
-						h('label',undefined,this.props.form.payment.bank.last4)
-					),
-					h('div',{class:'column col-6'},
-						h('label',{class:'form-label text-bold'},'Routing Number'),
-						h('label',undefined,this.props.form.payment.bank.routing_number)
-					)
-				)
-			),
-			h('div',{class:'divider text-center','data-content':'New Account Information'}),
-			h('div',{class:'form-group'},
-				h('label',{class:'form-label'},'Routing Number'),
-				h('input',{
-					class:'form-input',
-					value:this.state.routing,
-					onInput:e => this.setState({routing:e.target.value})
-				})
-			),
-			h('div',{class:'form-group'},
-				h('label',{class:'form-label'},'Account Number'),
-				h('input',{
-					class:'form-input',
-					value:this.state.account,
-					onInput:e => this.setState({account:e.target.value})
-				})
-			),
-			h('div',{class:'form-group'},
-				h('label',{class:'form-label'},'Account Holder Name'),
-				h('input',{
-					class:'form-input',
-					value:this.state.name,
-					onInput:e => this.setState({name:e.target.value})
-				})
-			),
-			h('div',{class:'text-center mt-2'},
-				h('a',{href:'https://stripe.com/connect-account/legal',target:'_blank',onClick:e => this.setState({tosRead:true})},'Read the Terms of Service')
-			),
-			h('div',{class:'text-center mt-2'},
-				h('button',{class:'btn btn-success',disabled:!this.state.tosRead},'Update')
-			)
-		)
-	}
-	render(){
-		return this.state.loading ? h(Loading) : this.content()
-	}
-}
-
 class Profile extends Component {
 	constructor(props){
 		super(props)
@@ -160,6 +73,17 @@ class Profile extends Component {
 			}))
 		}).promise()
 		this.setState({loading:false})
+	}
+	async updatePayment(){
+		this.setState({loading:true})
+		const r = await lambda.invoke({
+			FunctionName:'fitu_update_professional_payment',
+			Payload:JSON.stringify({
+				token:window.localStorage.getItem('token')
+			})
+		}).promise()
+		this.setState({loading:false})
+		window.location.replace(JSON.parse(r.Payload))
 	}
 	addCertification(){
 		this.state.form.certifications.unshift({})
@@ -289,7 +213,8 @@ class Profile extends Component {
 				)
 			),
 			h('div',{class:'text-center mt-2'},
-				h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,onClick:e => this.save()},'Save')
+				h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,onClick:e => this.save()},'Save'),
+				this.state.form.sortKey && h('button',{class:`btn btn-success ml-1 ${this.state.loading ? 'loading' : ''}`,onClick:e => this.updatePayment()},'Update Payment')
 			)
 		)
 	}
@@ -573,10 +498,6 @@ class Container extends Component {
 				icon:'icon-people'
 			},
 			{
-				name:'Payment',
-				icon:'icon-mail'
-			},
-			{
 				name:'Schedule',
 				icon:'icon-time'
 			},
@@ -605,7 +526,12 @@ class Container extends Component {
 				type:'Professional'
 			})
 		}).promise()
-		this.setState({form:Object.assign(this.state.form, JSON.parse(r.Payload))})
+		if(r.Payload){
+			this.setState({form:Object.assign(this.state.form, JSON.parse(r.Payload))})
+		}
+	}
+	show(s,i){
+		return i === 0 || this.state.form.payment.contractor
 	}
 	hasAuth(){
 		return window.localStorage.getItem('email') && window.localStorage.getItem('token')
@@ -617,8 +543,6 @@ class Container extends Component {
 		switch(this.state.screen.name){
 			case 'Profile':
 				return h(Profile,{form:this.state.form})
-			case 'Payment':
-				return h(Payment,{form:this.state.form, onPaymentSave:(form) => this.setState({form})})
 			case 'Requests':
 				return h(Requests,{form:this.state.form})
 			case 'Appointments':
@@ -649,7 +573,7 @@ class Container extends Component {
 				h('div',{class:'off-canvas-sidebar',id:'sidebar'},
 					h('div',{class:'container'},
 						h('ul',{class:'menu'},
-							this.state.screens.map(s => h('li',{class:'menu-item'},
+							this.state.screens.filter((s,i) => this.show(s,i)).map(s => h('li',{class:'menu-item'},
 								h('a',{href:'#close',onClick:e => this.changeMenu(e,s)},
 									h('i',{class:'icon mr-2 '+s.icon}),
 									h('label',{class:'form-label d-inline-flex'+(this.state.screen === s ? ' text-bold' : '')},s.name)
