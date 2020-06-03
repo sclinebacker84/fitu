@@ -100,6 +100,9 @@ class Profile extends Component {
 	render(){
 		return h('div',undefined,
 			this.state.form.hasPending && h('div',{class:'toast toast-warning text-center'},'Pending Changes'),
+			this.state.form.sortKey && h('div',{class:'text-center'},
+				h('button',{class:`btn mt-1 ${this.state.loading ? 'loading' : ''}`,onClick:e => this.updatePayment()},'Update Payment')
+			),
 			h('div',{class:'form-group'},
 				h('label',{class:'form-label'},'First Name'),
 				h('input',{
@@ -213,8 +216,7 @@ class Profile extends Component {
 				)
 			),
 			h('div',{class:'text-center mt-2'},
-				h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,onClick:e => this.save()},'Save'),
-				this.state.form.sortKey && h('button',{class:`btn btn-success ml-1 ${this.state.loading ? 'loading' : ''}`,onClick:e => this.updatePayment()},'Update Payment')
+				h('button',{class:`btn btn-success ${this.state.loading ? 'loading' : ''}`,onClick:e => this.save()},'Save')
 			)
 		)
 	}

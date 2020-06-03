@@ -128,7 +128,7 @@ class ScheduleModal extends Component {
 	async request(){
 		if(confirm('Really make this request?')){
 			this.setState({loading:true})
-			await lambda.invoke({
+			let r = await lambda.invoke({
 				FunctionName:'fitu_schedule_request',
 				Payload:JSON.stringify({
 					token:window.localStorage.getItem('token'),
@@ -137,13 +137,18 @@ class ScheduleModal extends Component {
 					profession:this.props.profession
 				})
 			}).promise()
+			r = JSON.parse(r.Payload)
+			if(r && r.errorMessage){
+				alert(r.errorMessage)
+			}
 			this.setState({loading:false})
+			window.history.pushState(null, '', window.location.href.replace(/#.+$/,''))
 		}
 	}
 	checked(d,t){
 		return this.state.schedule[d][t.name]
 	}
-	render(){
+	content(){
 		return h('div',{class:'modal',id:'scheduleModal'},
 			h('a',{href:'#close',class:'modal-overlay'}),
 			h('div',{class:'modal-container'},
@@ -174,6 +179,9 @@ class ScheduleModal extends Component {
 				)
 			)
 		)
+	}
+	render(){
+		return this.state.loading ? h(Loading) : this.content()
 	}
 }
 
@@ -490,12 +498,12 @@ class Container extends Component {
 		super(props)
 		this.state.screens = [
 			{
-				name:'Search',
-				icon:'icon-search'
-			},
-			{
 				name:'Profile',
 				icon:'icon-people'
+			},
+			{
+				name:'Search',
+				icon:'icon-search'
 			},
 			{
 				name:'Appointments',
@@ -505,6 +513,9 @@ class Container extends Component {
 		this.state.screen = this.state.screens[0]
 		this.state.form = {name:{}}
 		this.profile()
+	}
+	show(s,i){
+		return i === 0 || this.state.form.payment
 	}
 	async profile(){
 		const r = await lambda.invoke({
@@ -552,7 +563,7 @@ class Container extends Component {
 				h('div',{class:'off-canvas-sidebar',id:'sidebar'},
 					h('div',{class:'container'},
 						h('ul',{class:'menu'},
-							this.state.screens.map(s => h('li',{class:'menu-item'},
+							this.state.screens.filter((s,i) => this.show(s,i)).map(s => h('li',{class:'menu-item'},
 								h('a',{href:'#close',onClick:e => this.changeMenu(e,s)},
 									h('i',{class:'icon mr-2 '+s.icon}),
 									h('label',{class:'form-label d-inline-flex'+(this.state.screen === s ? ' text-bold' : '')},s.name)
