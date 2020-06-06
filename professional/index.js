@@ -274,7 +274,7 @@ class Requests extends Component {
 		this.state.requests = []
 		this.getRequests()
 	}
-	getNextMoment = (day,time) => {
+	getNextMoment(day,time){
 		day = day.substring(0,day.length - 1)
 		var weekDayToFind = moment().day(day).weekday(); //change to searched day name
 		var searchDate = moment(); //now or change to any date
