@@ -181,7 +181,7 @@ class Profile extends Component {
 				h('div',{class:'columns'},
 					h('div',{class:'column col-12 columns'},
 						h('div',{class:'column col-4'},
-							h('label',{class:'form-label'},'Certification'),
+							h('label',{class:'form-label'},'Name'),
 							h('select',{
 								class:'form-select',
 								value:cert.name,
@@ -192,13 +192,13 @@ class Profile extends Component {
 							))
 						),
 						h('div',{class:'column col-4'},
-							h('label',{class:'form-label'},'Expires On'),
+							h('label',{class:'form-label'},'Date Awarded'),
 							h('input',{
 								class:'form-input',
 								type:'date',
-								value:cert.expirationDate,
-								min:new Date().toISOString().split('T')[0],
-								onInput:e => this.updateValue(cert,'expirationDate',e.target.value)
+								value:cert.date,
+								max:new Date().toISOString().split('T')[0],
+								onInput:e => this.updateValue(cert,'date',e.target.value)
 							})
 						),
 						h('div',{class:'column col-4'},

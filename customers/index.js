@@ -373,7 +373,7 @@ class Search extends Component {
 			}
 		}).promise()
 		r.Item.data.forEach(r => professions.add(r.profession))
-		this.setState({professions:Array.from(professions), loading:false})
+		this.setState({rates:r.Item.rates, professions:Array.from(professions), loading:false})
 		this.setState({profession:this.state.professions[0]})
 	}
 	async search(e){
@@ -390,16 +390,15 @@ class Search extends Component {
 		}).promise()
 		const results = JSON.parse(r.Payload)
 		results.forEach(r => {
-			r.professions.forEach(r => {
-				r.cost = Math.round(100*r.cost)/100
-			})
+			Object.keys(r.levels).forEach(k => r.levels[k] = {level:r.levels[k], rate:this.state.rates.find(e => e.level === r.levels[k] && e.profession === k).rate})
 		})
 		this.setState({loading:false,results:results})
 	}
 	disableSearch(){
 		return !(this.state.profession && this.state.zip && this.state.radius && this.state.gender)
 	}
-	async setResult(result){
+	async setResult(e,result){
+		this.setState({loading:true})
 		const r = await lambda.invoke({
 			FunctionName:'fitu_get_availability',
 			Payload:JSON.stringify({
@@ -408,7 +407,7 @@ class Search extends Component {
 			})
 		}).promise()
 		result.schedule = JSON.parse(r.Payload)
-		this.setState({result})
+		this.setState({result:result,loading:false})
 	}
 	render(){
 		return h('div',undefined,
@@ -435,7 +434,7 @@ class Search extends Component {
 			h('div',{class:'text-center mt-1 mb-1'},
 				h('button',{class:'btn'+(this.state.loading ? ' loading' : ''),disabled:this.disableSearch(),onClick:e => this.search(e)},'Search')
 			),
-			h(ScheduleModal,{result:this.state.result, profession:this.state.profession}),
+			h(ScheduleModal,{result:this.state.result, profession:this.state.profession, loading:this.state.loading}),
 			h('div',{class:'container'},
 				!this.state.results.length ? 
 				  h('div',{class:'empty'},
@@ -455,12 +454,14 @@ class Search extends Component {
 							h('div',{class:'card-title h5'},`${result.name.first} ${result.name.middle || ''} ${result.name.last}`)
 						),
 						h('div',{class:'card-body'},
-							result.professions.map(r => h('div',{class:'h6'},`${r.profession} (Level: ${r.level}) ($${r.cost}/hr)`))
+							Object.keys(result.levels).map(r => 
+								h('div',{class:'h6'},`${r} (Level: ${result.levels[r].level}) ($${result.levels[r].rate}/hr)`)
+							)
 						),
 						h('div',{class:'card-footer'},
 							h('div',{class:'columns'},
 								h('div',{class:'column col-4 col-mx-auto text-center'},
-									h('a',{class:'btn',href:'#scheduleModal',onClick:e => this.setResult(result)},'Schedule')
+									h('a',{class:'btn',href:'#scheduleModal',onClick:e => this.setResult(e,result)},'Schedule')
 								)
 							)
 						)
