@@ -564,7 +564,9 @@ class Container extends Component {
 					)
 				),
 				h('div',{class:'navbar-center'},
-					h('img',{class:'img-responsive',style:'height: 3em',src:'../img/logo.png'})
+					h('a',{href:'../index.html'},
+						h('img',{class:'img-responsive',style:'height: 3em',src:'../img/logo.png'})
+					)
 				),
 				h('div',{class:'navbar-section'})
 			),
