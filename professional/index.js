@@ -192,7 +192,7 @@ class Profile extends Component {
 							))
 						),
 						h('div',{class:'column col-4'},
-							h('label',{class:'form-label'},'Date Awarded'),
+							h('label',{class:'form-label'},'Date'),
 							h('input',{
 								class:'form-input',
 								type:'date',
@@ -481,7 +481,7 @@ class Rates extends Component {
 			h('tbody',undefined,
 				this.state.rates.map(r => h('tr',undefined,
 					h('td',undefined,r.profession),
-					h('td',undefined,r.rate)	
+					h('td',undefined,`$${r.rate.toFixed(2)}/hr`)	
 				))
 			)
 		)
@@ -521,6 +521,7 @@ class Container extends Component {
 		this.profile()
 	}
 	async profile(){
+		this.setState({loading:true})
 		const r = await lambda.invoke({
 			FunctionName:'fitu_get_profile',
 			Payload:JSON.stringify({
@@ -528,6 +529,7 @@ class Container extends Component {
 				type:'Professional'
 			})
 		}).promise()
+		this.setState({loading:false})
 		if(r.Payload){
 			this.setState({form:Object.assign(this.state.form, JSON.parse(r.Payload))})
 		}
@@ -591,7 +593,7 @@ class Container extends Component {
 		)
 	}
 	render(){
-		return this.hasAuth() ? this.content() : h(Auth)
+		return this.hasAuth() ? this.state.loading ? h(Loading) : this.content() : h(Auth)
 	}
 }
 

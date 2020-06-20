@@ -113,7 +113,6 @@ class Approvals extends Component {
 	constructor(props){
 		super(props)
 		this.state.user = params.get('user')
-		this.state.type = 'Change'
 		this.state.changes = []
 		this.state.comments = undefined
 		this.getChange()
@@ -124,7 +123,6 @@ class Approvals extends Component {
 			FunctionName:'fitu_get_change',
 			Payload:JSON.stringify({
 				user:this.state.user,
-				type:this.state.type,
 				token:window.localStorage.getItem('token')
 			})
 		}).promise()
@@ -189,7 +187,7 @@ class Approvals extends Component {
 					  h('input',{type:'checkbox',id:`a-${i}`,hidden:true}),
 					  h('label',{class:"accordion-header bg-secondary text-center",for:`a-${i}`},
 					    h('i',{class:"icon icon-arrow-right mr-1"}),
-					    `${c.sortKey}`
+					    `${c.sortKey} (${c.partitionKey})`
 					  ),
 					  h('div',{class:"accordion-body"},
 					  	h('pre',{style:'height: 15em ; overflow-y: auto'},

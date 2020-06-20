@@ -181,7 +181,7 @@ class ScheduleModal extends Component {
 		)
 	}
 	render(){
-		return this.state.loading ? h(Loading) : this.content()
+		return this.props.loading ? h(Loading) : this.content()
 	}
 }
 
@@ -266,6 +266,7 @@ class Profile extends Component {
 			}))
 		}).promise()
 		this.setState({loading:false})
+		alert("Your changes have been submitted for review. You'll get an email when they're approved.")
 	}
 	updateValue(o,k,v){
 		o[k] = v
@@ -519,6 +520,7 @@ class Container extends Component {
 		return i === 0 || this.state.form.payment
 	}
 	async profile(){
+		this.setState({loading:true})
 		const r = await lambda.invoke({
 			FunctionName:'fitu_get_profile',
 			Payload:JSON.stringify({
@@ -526,7 +528,7 @@ class Container extends Component {
 				type:'Customer'
 			})
 		}).promise()
-		this.setState({form:Object.assign(this.state.form, JSON.parse(r.Payload))})
+		this.setState({loading:false,form:Object.assign(this.state.form, JSON.parse(r.Payload))})
 	}
 	hasAuth(){
 		return window.localStorage.getItem('email') && window.localStorage.getItem('token')
@@ -580,7 +582,7 @@ class Container extends Component {
 		)
 	}
 	render(){
-		return this.hasAuth() ? this.content() : h(Auth)
+		return this.hasAuth() ? this.state.loading ? h(Loading) : this.content() : h(Auth)
 	}
 }
 
