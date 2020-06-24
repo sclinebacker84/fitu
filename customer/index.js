@@ -187,7 +187,7 @@ class ScheduleModal extends Component {
 
 class Payment extends Component {
 	componentDidMount(){
-		this.state.stripe = Stripe('pk_test_lSpMMl862vJHi5zAa7AErlgg00EenMRuXN')
+		this.state.stripe = Stripe('pk_test_51GxLalID0wGeNy908FpR1wYahep8RZyOtRRfGoY6N6wJzmGZLjSCi5FBwZPyz4IX9zWT10rh76plaI0Q8YTe516g00E6OLKs6z')
 		const elements = this.state.stripe.elements()
 		const style = {
 		  base: {
