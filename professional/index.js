@@ -247,7 +247,7 @@ class Schedule extends Component {
 	}
 	render(){
 		return h('div',undefined,
-			h('div',{style:'height: 30em ; overflow-y: auto'},
+			h('div',{style:'height: 75% ; overflow-y: auto'},
 				this.state.days.map(d => h('div',undefined,
 					h('div',{class:'text-center h5'},d),
 					h('div',{class:'columns'},
@@ -542,6 +542,7 @@ class Container extends Component {
 	}
 	changeMenu(e,s){
 		this.setState({screen:s})
+		this.close(e)
 	}
 	screen(){
 		switch(this.state.screen.name){
@@ -557,11 +558,17 @@ class Container extends Component {
 				return h(Rates,{})
 		}
 	}
+	open(e){
+		this.setState({showSidebar:true})
+	}
+	close(e){
+		this.setState({showSidebar:false})
+	}
 	content(){
 		return h('div',{class:'container'},
 			h('div',{class:'navbar bg-secondary mb-2'},
 				h('div',{class:'navbar-section'},
-					h('a',{class:'off-canvas-toggle btn btn-link', href:'#sidebar'},
+					h('button',{onClick:e => this.open(e),class:'off-canvas-toggle btn btn-link'},
 						h('i',{class:'icon icon-menu'})
 					)
 				),
@@ -576,11 +583,11 @@ class Container extends Component {
 				h('div',{class:'off-canvas-content',style:'padding: 0px'},
 					this.screen()
 				),
-				h('div',{class:'off-canvas-sidebar',id:'sidebar'},
+				h('div',{class:'off-canvas-sidebar '+(this.state.showSidebar ? 'active' : ''),id:'sidebar'},
 					h('div',{class:'container'},
 						h('ul',{class:'menu'},
 							this.state.screens.filter((s,i) => this.show(s,i)).map(s => h('li',{class:'menu-item'},
-								h('a',{href:'#close',onClick:e => this.changeMenu(e,s)},
+								h('a',{onClick:e => this.changeMenu(e,s)},
 									h('i',{class:'icon mr-2 '+s.icon}),
 									h('label',{class:'form-label d-inline-flex'+(this.state.screen === s ? ' text-bold' : '')},s.name)
 								)
@@ -588,7 +595,7 @@ class Container extends Component {
 						)
 					)
 				),
-				h('a',{href:'#close',class:'off-canvas-overlay'})
+				h('a',{onClick:e => this.close(e),class:'off-canvas-overlay'})
 			)
 		)
 	}

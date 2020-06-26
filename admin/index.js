@@ -49,17 +49,25 @@ class Menu extends Component {
 	}
 }
 
-class Modal extends Component {
+class RejectionModal extends Component {
 	render(){
-		return h('div',{class:'modal',id:this.props.id},
-			h('a',{href:'#close',class:'modal-overlay'}),
+		return h('div',{class:'modal '+(this.props.show ? 'active' : '')},
+			h('a',{onClick:e => this.props.close(e),class:'modal-overlay'}),
 			h('div',{class:'modal-container'},
 				h('div',{class:'modal-header'},
-					h('a',{href:'#close',class:'btn btn-clear float-right'}),
-					h('div',{class:'modal-title h4 text-center'},this.props.title)
+					h('a',{onClick:e => this.props.close(e),class:'btn btn-clear float-right'}),
+					h('div',{class:'modal-title h4 text-center'},'Provide Reason')
 				),
 				h('div',{class:'modal-body'},
-					this.props.body && this.props.body
+					h('form',{onSubmit:e => this.reject(e)},
+						h('div',{class:'text-center'},
+							h('textarea',{class:'form-input',onInput:e => this.setState({comments:e.target.value}), value:this.state.comments})
+						),
+						h('div',{class:'text-center mt-2'},
+							h('a',{class:'btn',onClick:e => this.props.reject(e,this.state.comments)},'Reject'),
+							h('a',{class:'btn',onClick:e => this.props.close(e)},'Cancel')
+						)
+					)
 				)
 			)
 		)
@@ -142,16 +150,15 @@ class Approvals extends Component {
 		this.setState({loading:false})
 		await this.getChange()
 	}
-	async reject(e){
-		e && e.preventDefault()
+	async reject(comments){
 		if(this.state.c){
-			this.setState({loading:true})
+			this.setState({loading:true,show:false})
 			const r = await lambda.invoke({
 				FunctionName:'fitu_make_decision',
 				Payload:JSON.stringify({
 					data:this.state.c.data,
 					approved:false,
-					comments:this.state.comments,
+					comments:comments,
 					token:window.localStorage.getItem('token')
 				})
 			}).promise()
@@ -159,20 +166,13 @@ class Approvals extends Component {
 			await this.getChange()
 		}
 	}
-	rejectionModal(){
-		return h('form',{onSubmit:e => this.reject(e)},
-			h('div',{class:'text-center'},
-				h('textarea',{class:'form-input',onInput:e => this.setState({comments:e.target.value}), value:this.state.comments})
-			),
-			h('div',{class:'text-center mt-2'},
-				h('a',{class:'btn',href:'#close',onClick:e => this.reject()},'Reject'),
-				h('a',{class:'btn',href:'#close'},'Cancel')
-			)
-		)
-	}
 	render(){
 		return h('div',{class:'container'},
-			h(Modal,{id:'rejectionModal',title:'Enter Reason for Rejection',body:this.rejectionModal()}),
+			h(RejectionModal,{
+				show:this.state.show,
+				close:e => this.setState({show:false}),
+				reject:(e,comments) => this.reject(comments)
+			}),
 			this.state.loading && h('div',{class:'loading loading-lg mt-1'}),
 			h('div',{class:'mt-2'},
 				!this.state.changes.length ? 
@@ -195,7 +195,7 @@ class Approvals extends Component {
 					  	),
 					  	h('div',{class:'btn-group btn-group-block'},
 					  		h('button',{class:'btn btn-success'+(this.state.loading ? ' loading' : ''),onClick:e => this.approve(e,c)},'Approve'),
-					  		h('a',{href:'#rejectionModal',class:'btn',onClick:e => this.setState({c})},'Reject')
+					  		h('a',{class:'btn',onClick:e => this.setState({c:c,show:true})},'Reject')
 					  	)
 					  )
 					)
@@ -258,6 +258,7 @@ class Container extends Component {
 	}
 	changeMenu(e,s){
 		this.setState({screen:s})
+		this.close(e)
 	}
 	hasAuth(){
 		return window.localStorage.getItem('email') && window.localStorage.getItem('token')
@@ -272,11 +273,17 @@ class Container extends Component {
 				return h(RefreshDatabase)
 		}
 	}
+	open(e){
+		this.setState({showSidebar:true})
+	}
+	close(e){
+		this.setState({showSidebar:false})
+	}
 	content(){
 		return h('div',{class:'container'},
 			h('div',{class:'navbar bg-secondary mb-2'},
 				h('div',{class:'navbar-section'},
-					h('a',{class:'off-canvas-toggle btn btn-link', href:'#sidebar'},
+					h('button',{onClick:e => this.open(e),class:'off-canvas-toggle btn btn-link'},
 						h('i',{class:'icon icon-menu'})
 					)
 				),
@@ -289,11 +296,11 @@ class Container extends Component {
 				h('div',{class:'off-canvas-content',style:'padding: 0px'},
 					this.screen()
 				),
-				h('div',{class:'off-canvas-sidebar',id:'sidebar'},
+				h('div',{class:'off-canvas-sidebar '+(this.state.showSidebar ? 'active' : ''),id:'sidebar'},
 					h('div',{class:'container'},
 						h('ul',{class:'menu'},
 							this.state.screens.map(s => h('li',{class:'menu-item'},
-								h('a',{href:'#close',onClick:e => this.changeMenu(e,s)},
+								h('a',{onClick:e => this.changeMenu(e,s)},
 									h('i',{class:'icon mr-2 '+s.icon}),
 									h('label',{class:'form-label d-inline-flex'+(this.state.screen === s ? ' text-bold' : '')},s.name)
 								)
@@ -301,7 +308,7 @@ class Container extends Component {
 						)
 					)
 				),
-				h('a',{href:'#close',class:'off-canvas-overlay'})
+				h('a',{onClick:e => this.close(e),class:'off-canvas-overlay'})
 			)
 		)
 	}

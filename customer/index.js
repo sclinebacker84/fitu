@@ -127,6 +127,7 @@ class ScheduleModal extends Component {
 	}
 	async request(){
 		if(confirm('Really make this request?')){
+			Object.keys(this.state.schedule).filter(k => !this.state.schedule[k]).forEach(k => delete this.state.schedule[k])
 			this.setState({loading:true})
 			let r = await lambda.invoke({
 				FunctionName:'fitu_schedule_request',
@@ -148,13 +149,16 @@ class ScheduleModal extends Component {
 	checked(d,t){
 		return this.state.schedule[d][t.name]
 	}
+	close(e){
+		this.props.refresh({showModal:false})
+	}
 	content(){
-		return h('div',{class:'modal',id:'scheduleModal'},
-			h('a',{href:'#close',class:'modal-overlay'}),
+		return h('div',{class:'modal '+(this.props.show ? 'active' : ''),id:'scheduleModal'},
+			h('a',{onClick:e => this.close(e),class:'modal-overlay'}),
 			h('div',{class:'modal-container'},
 				h('div',{class:'modal-header'},
-					h('a',{href:'#close',class:'btn btn-clear float-right'}),
-					h('div',{class:'modal-title h4'},'Select upto 3 times that work for you')
+					h('button',{onClick:e => this.close(e),class:'btn btn-clear float-right'}),
+					h('div',{class:'modal-title h4 text-center'},'Pick up to 3 times')
 				),
 				h('div',{class:'modal-body'},
 					h('div',{style:'height: 30em ; overflow-y: auto'},
@@ -408,7 +412,7 @@ class Search extends Component {
 			})
 		}).promise()
 		result.schedule = JSON.parse(r.Payload)
-		this.setState({result:result,loading:false})
+		this.setState({result:result,loading:false,showModal:true})
 	}
 	render(){
 		return h('div',undefined,
@@ -435,7 +439,12 @@ class Search extends Component {
 			h('div',{class:'text-center mt-1 mb-1'},
 				h('button',{class:'btn'+(this.state.loading ? ' loading' : ''),disabled:this.disableSearch(),onClick:e => this.search(e)},'Search')
 			),
-			h(ScheduleModal,{result:this.state.result, profession:this.state.profession, loading:this.state.loading}),
+			h(ScheduleModal,{
+				result:this.state.result, 
+				profession:this.state.profession, 
+				show:this.state.showModal,
+				refresh:state => this.setState(state || this.state)
+			}),
 			h('div',{class:'container'},
 				!this.state.results.length ? 
 				  h('div',{class:'empty'},
@@ -462,7 +471,7 @@ class Search extends Component {
 						h('div',{class:'card-footer'},
 							h('div',{class:'columns'},
 								h('div',{class:'column col-4 col-mx-auto text-center'},
-									h('a',{class:'btn',href:'#scheduleModal',onClick:e => this.setResult(e,result)},'Schedule')
+									h('button',{class:'btn',onClick:e => this.setResult(e,result)},'Schedule')
 								)
 							)
 						)
@@ -535,6 +544,7 @@ class Container extends Component {
 	}
 	changeMenu(e,s){
 		this.setState({screen:s})
+		this.close(e)
 	}
 	screen(){
 		switch(this.state.screen.name){
@@ -546,11 +556,17 @@ class Container extends Component {
 				return h(Appointments, {form:this.state.form})
 		}
 	}
+	open(e){
+		this.setState({showSidebar:true})
+	}
+	close(e){
+		this.setState({showSidebar:false})
+	}
 	content(){
 		return h('div',{class:'container'},
 			h('div',{class:'navbar bg-secondary mb-2'},
 				h('div',{class:'navbar-section'},
-					h('a',{class:'off-canvas-toggle btn btn-link', href:'#sidebar'},
+					h('button',{onClick:e => this.open(e),class:'off-canvas-toggle btn btn-link'},
 						h('i',{class:'icon icon-menu'})
 					)
 				),
@@ -565,11 +581,11 @@ class Container extends Component {
 				h('div',{class:'off-canvas-content',style:'padding: 0px'},
 					this.screen()
 				),
-				h('div',{class:'off-canvas-sidebar',id:'sidebar'},
+				h('div',{class:'off-canvas-sidebar '+(this.state.showSidebar ? 'active' : ''),id:'sidebar'},
 					h('div',{class:'container'},
 						h('ul',{class:'menu'},
 							this.state.screens.filter((s,i) => this.show(s,i)).map(s => h('li',{class:'menu-item'},
-								h('a',{href:'#close',onClick:e => this.changeMenu(e,s)},
+								h('a',{onClick:e => this.changeMenu(e,s)},
 									h('i',{class:'icon mr-2 '+s.icon}),
 									h('label',{class:'form-label d-inline-flex'+(this.state.screen === s ? ' text-bold' : '')},s.name)
 								)
@@ -577,7 +593,7 @@ class Container extends Component {
 						)
 					)
 				),
-				h('a',{href:'#close',class:'off-canvas-overlay'})
+				h('a',{onClick:e => this.close(e),class:'off-canvas-overlay'})
 			)
 		)
 	}
